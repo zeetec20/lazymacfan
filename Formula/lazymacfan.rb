@@ -3,7 +3,7 @@ class Lazymacfan < Formula
   homepage "https://github.com/zeetec/lazymacfan"
   url "https://github.com/zeetec/lazymacfan/releases/download/v0.1.0/lazymacfan-v0.1.0-universal.tar.gz"
   version "0.1.0"
-  sha256 "a1d90942870f1cf143d32d3a6ea33104bea54d43265bea5c157ddf6be14cb1e0" # Updated on release packaging
+  sha256 "f6a3069e485996fba1646829b46c30f70933b97dcee62d200ebd0631144a26f9" # Updated on release packaging
   license "MIT"
   head "https://github.com/zeetec/lazymacfan.git", branch: "main"
 

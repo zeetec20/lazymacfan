@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { IPCClient } from "../ipc/client";
 import { runAgentDaemon } from "../daemon/agent";
-import { TuiApplication } from "../tui/app";
+import { runTui } from "../tui/app";
 import { getLogPath } from "../config/persistence";
 import { getServiceStatus, startService, stopService } from "../service/launchd";
 
@@ -36,8 +36,7 @@ async function main(): Promise<void> {
   const command = args[0];
 
   if (!command) {
-    const tui = new TuiApplication();
-    await tui.run();
+    await runTui();
     return;
   }
 

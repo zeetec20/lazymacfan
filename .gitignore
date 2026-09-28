@@ -1,0 +1,20 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+release/
+*.o
+*.dylib
+*.a
+
+# Logs & temp
+*.log
+.DS_Store
+
+# Nix
+result
+.direnv/
+
+# Bun
+bun.lockb

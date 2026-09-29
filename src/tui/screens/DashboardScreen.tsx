@@ -99,7 +99,7 @@ export const DashboardScreen = ({
           ) : (
             status.fans.map((fan, idx) => {
               const isSelected = idx === selectedFanIndex;
-              const isManual = fan.mode === "manual";
+              const isManual = status.mode === "manual";
               return (
                 <box
                   key={fan.id}
@@ -170,12 +170,15 @@ export const DashboardScreen = ({
         {/* Thermal Overview Card */}
         <box
           style={{
+            flexGrow: 1,
             flexDirection: "column",
             borderStyle: "rounded",
             borderColor: theme.border,
             paddingLeft: 2,
             paddingRight: 2,
-            flexShrink: 0,
+            paddingTop: 1,
+            paddingBottom: 1,
+            gap: 1,
           }}
         >
           <box style={{ flexDirection: "row", alignItems: "center", height: 1, flexShrink: 0 }}>
@@ -310,11 +313,15 @@ export const DashboardScreen = ({
         {/* Controller Health Card */}
         <box
           style={{
+            flexGrow: 1,
+            flexDirection: "column",
             borderStyle: "rounded",
             borderColor: theme.border,
             paddingLeft: 2,
             paddingRight: 2,
-            flexShrink: 0,
+            paddingTop: 1,
+            paddingBottom: 1,
+            gap: 1,
           }}
         >
           <box style={{ flexDirection: "row", alignItems: "center", height: 1, flexShrink: 0 }}>
@@ -351,7 +358,11 @@ export const DashboardScreen = ({
               fg={status.mode === "manual" ? theme.fanManual : theme.fanAuto}
               attributes={TextAttributes.BOLD}
             >
-              {status.mode === "manual" ? "MANUAL OVERRIDE" : "DYNAMIC CURVE (AUTO)"}
+              {status.lidClosed
+                ? "AUTO (LID CLOSED)"
+                : status.mode === "manual"
+                  ? "MANUAL OVERRIDE"
+                  : "DYNAMIC CURVE (AUTO)"}
             </text>
           </box>
 
@@ -394,7 +405,7 @@ export const DashboardScreen = ({
               fg={status.privileged === false ? theme.tempWarm : theme.tempCool}
               attributes={TextAttributes.BOLD}
             >
-              {status.privileged === false ? "Read-Only (Unprivileged)" : "Root / Privileged"}
+              {status.privileged === false ? "🔒 Read-Only" : "⚡ Full Control"}
             </text>
           </box>
 

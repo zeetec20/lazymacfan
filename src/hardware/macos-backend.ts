@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import type { HardwareProvider } from "./hardware";
 import type { Fan } from "../types/fan";
@@ -15,6 +15,18 @@ export const SYSTEM_HELPER_PATH = "/Library/PrivilegedHelperTools/lazymacfan-hel
 export const resolveHelperPath = (): string | null => {
   if (process.env["LAZYMACFAN_HELPER_PATH"] && existsSync(process.env["LAZYMACFAN_HELPER_PATH"])) {
     return process.env["LAZYMACFAN_HELPER_PATH"];
+  }
+
+  // If system privileged helper exists and is SUID root, prioritize it for hardware access
+  if (existsSync(SYSTEM_HELPER_PATH)) {
+    try {
+      const stat = statSync(SYSTEM_HELPER_PATH);
+      if (stat.uid === 0 && (stat.mode & 0o4000) !== 0) {
+        return SYSTEM_HELPER_PATH;
+      }
+    } catch {
+      // ignore
+    }
   }
 
   const execDir = dirname(process.execPath);

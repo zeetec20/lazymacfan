@@ -16,4 +16,5 @@ export interface ControllerStatus {
   error?: string;
   privileged?: boolean;
   lidClosed?: boolean;
+  modeBeforeSleep?: FanMode;
 }

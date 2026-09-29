@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { parse, stringify } from "smol-toml";
 import { type AppConfig, DEFAULT_CONFIG } from "./config";
 import type { ControllerStatus } from "../types/controller";
+import type { FanMode } from "../types/fan";
 
 /** Expand a leading `~` to the user's home directory. */
 export const expandHome = (path: string): string => {
@@ -116,6 +117,7 @@ export interface RuntimeState {
   pid: number;
   lastUpdate: string;
   mode: string;
+  modeBeforeSleep?: FanMode;
 }
 
 export const loadState = (): RuntimeState | null => {
@@ -135,6 +137,7 @@ export const saveState = (status: ControllerStatus): void => {
     pid: status.pid,
     lastUpdate: status.lastUpdate,
     mode: status.mode,
+    modeBeforeSleep: status.modeBeforeSleep,
   };
   writeFileSync(STATE_FILE, JSON.stringify(state, null, 2), "utf-8");
 };

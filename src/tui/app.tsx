@@ -84,7 +84,7 @@ const MainApp = () => {
       if (!status || status.fans.length === 0) return;
       if (status.privileged === false) {
         showToast(
-          "Read-Only mode: Run 'sudo lazymacfan helper setup' to enable fan control",
+          "Read-Only mode: Re-run lazymacfan in terminal to authorize fan control",
           "warning",
           5500,
         );
@@ -126,7 +126,11 @@ const MainApp = () => {
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
           if (/permission denied|privilege|EPERM/i.test(msg)) {
-            showToast("Root required: Run 'sudo lazymacfan helper setup'", "error", 5500);
+            showToast(
+              "Access required: Re-run lazymacfan to authorize fan control via macOS prompt",
+              "error",
+              5500,
+            );
           } else {
             showToast(`Error: ${msg}`, "error", 5000);
           }
@@ -159,7 +163,11 @@ const MainApp = () => {
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
           if (/permission denied|privilege|EPERM/i.test(msg)) {
-            showToast("Root required: Run 'sudo lazymacfan helper setup'", "error", 5500);
+            showToast(
+              "Access required: Re-run lazymacfan to authorize fan control via macOS prompt",
+              "error",
+              5500,
+            );
           } else {
             showToast(`Error: ${msg}`, "error", 5000);
           }
@@ -175,7 +183,7 @@ const MainApp = () => {
     if (!status) return;
     if (status.privileged === false) {
       showToast(
-        "Read-Only mode: Run 'sudo lazymacfan helper setup' to enable fan control",
+        "Read-Only mode: Re-run lazymacfan in terminal to authorize fan control",
         "warning",
         5500,
       );
@@ -189,7 +197,11 @@ const MainApp = () => {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       if (/permission denied|privilege|EPERM/i.test(msg)) {
-        showToast("Root required: Run 'sudo lazymacfan helper setup'", "error", 5500);
+        showToast(
+          "Access required: Re-run lazymacfan to authorize fan control via macOS prompt",
+          "error",
+          5500,
+        );
       } else {
         showToast(`Error: ${msg}`, "error", 5000);
       }

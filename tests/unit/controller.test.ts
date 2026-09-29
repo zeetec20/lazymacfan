@@ -72,7 +72,7 @@ describe("FanControllerService", () => {
     expect(fans.find((f) => f.id === 0)?.mode).toBe("auto");
   });
 
-  it("automatically switches to auto mode and restores OS control when screen/lid is closed", async () => {
+  it("automatically switches to auto mode when screen/lid is closed, and restores manual mode when reopened", async () => {
     const mock = createMockHardwareBackend();
     const testConfig: AppConfig = {
       controller: {
@@ -102,13 +102,50 @@ describe("FanControllerService", () => {
     // Mode is automatically reverted to auto and OS automatic control restored
     expect(controller.getStatus().mode).toBe("auto");
     expect(controller.getStatus().lidClosed).toBe(true);
-    const fans = await mock.getFans();
+    let fans = await mock.getFans();
     expect(fans.every((f) => f.mode === "auto")).toBe(true);
 
-    // Reopen lid
+    // Reopen lid -> auto re-attaches to manual mode and re-applies target RPM
     mock.setMockLidClosed(false);
     await controller.evaluateCycle();
     expect(controller.getStatus().lidClosed).toBe(false);
+    expect(controller.getStatus().mode).toBe("manual");
+    fans = await mock.getFans();
+    expect(fans.find((f) => f.id === 0)?.mode).toBe("manual");
+    expect(fans.find((f) => f.id === 0)?.targetRpm).toBe(4500);
+  });
+
+  it("remains in auto mode when lid was in auto mode prior to closing", async () => {
+    const mock = createMockHardwareBackend();
+    const testConfig: AppConfig = {
+      controller: {
+        mode: "auto",
+        pollIntervalMs: 1000,
+        emergencyTempC: 95,
+        tempUnit: "C",
+      },
+      fan: {
+        "0": {
+          targetRpm: 2500,
+        },
+      },
+    };
+
+    controller = createFanController(mock, testConfig);
+    mock.setMockLidClosed(false);
+    await controller.evaluateCycle();
     expect(controller.getStatus().mode).toBe("auto");
+
+    // Close lid
+    mock.setMockLidClosed(true);
+    await controller.evaluateCycle();
+    expect(controller.getStatus().mode).toBe("auto");
+    expect(controller.getStatus().lidClosed).toBe(true);
+
+    // Reopen lid -> stays in auto mode
+    mock.setMockLidClosed(false);
+    await controller.evaluateCycle();
+    expect(controller.getStatus().mode).toBe("auto");
+    expect(controller.getStatus().lidClosed).toBe(false);
   });
 });

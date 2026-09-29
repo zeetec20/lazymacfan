@@ -1,9 +1,9 @@
 import type { HardwareProvider } from "../hardware/hardware";
-import type { Fan } from "../types/fan";
+import type { Fan, FanMode } from "../types/fan";
 import type { TemperatureSensor } from "../types/temperature";
 import type { ControllerStatus } from "../types/controller";
 import { type AppConfig, DEFAULT_FAN_CURVE } from "../config/config";
-import { loadConfig, saveConfig, saveState } from "../config/persistence";
+import { loadConfig, loadState, saveConfig, saveState } from "../config/persistence";
 import { createSafetyGuardian } from "./safety";
 import { calculateRpmFromCurve } from "./fan-control";
 
@@ -31,12 +31,17 @@ export const createFanController = (
   let isRunning = false;
   let startTime = Date.now();
   let pollTimer: ReturnType<typeof setTimeout> | null = null;
+  let lastTickTime = Date.now();
 
   let cachedFans: Fan[] = [];
   let cachedSensors: TemperatureSensor[] = [];
   let lastError: string | null = null;
   let isPrivileged = true;
   let isLidClosed = false;
+  let wasLidClosed = false;
+  const savedState = loadState();
+  let modeBeforeLidClosed: FanMode | null =
+    (savedState?.modeBeforeSleep as FanMode | undefined) ?? null;
   let cycleCount = 0;
 
   const getStatus = (): ControllerStatus => ({
@@ -52,6 +57,7 @@ export const createFanController = (
     error: lastError ?? undefined,
     privileged: isPrivileged,
     lidClosed: isLidClosed,
+    modeBeforeSleep: modeBeforeLidClosed ?? undefined,
   });
 
   const getConfig = (): AppConfig => ({ ...config });
@@ -72,11 +78,17 @@ export const createFanController = (
 
     if (hardware.isLidClosed) {
       try {
-        isLidClosed = await hardware.isLidClosed();
-        if (isLidClosed) {
-          if (config.controller.mode !== "auto") {
+        const lidNow = await hardware.isLidClosed();
+        if (lidNow) {
+          // Lid is currently closed (sleep / clamshell)
+          if (!wasLidClosed) {
+            wasLidClosed = true;
+            isLidClosed = true;
+            modeBeforeLidClosed = config.controller.mode;
             config.controller.mode = "auto";
             saveConfig(config);
+          } else {
+            isLidClosed = true;
           }
           try {
             await hardware.restoreAllAutomatic();
@@ -87,6 +99,18 @@ export const createFanController = (
           cachedFans = await hardware.getFans();
           cachedSensors = await hardware.getSensors();
           return;
+        } else if (wasLidClosed) {
+          // Transition: CLOSED -> OPEN (device opened / wake!)
+          wasLidClosed = false;
+          isLidClosed = false;
+          if (modeBeforeLidClosed === "manual") {
+            config.controller.mode = "manual";
+            saveConfig(config);
+            lastAppliedRpm.clear(); // force immediate re-application of target RPM
+          }
+          modeBeforeLidClosed = null;
+        } else {
+          isLidClosed = false;
         }
       } catch {
         // ignore lid check failure
@@ -147,6 +171,18 @@ export const createFanController = (
   const tick = async (): Promise<void> => {
     if (!isRunning) return;
 
+    const now = Date.now();
+    // Detect system wake from sleep via timer drift
+    if (lastTickTime > 0 && now - lastTickTime > config.controller.pollIntervalMs * 3) {
+      lastAppliedRpm.clear();
+      if (modeBeforeLidClosed === "manual" && !isLidClosed) {
+        config.controller.mode = "manual";
+        saveConfig(config);
+        modeBeforeLidClosed = null;
+      }
+    }
+    lastTickTime = now;
+
     try {
       await evaluateCycle();
       lastError = null;
@@ -165,6 +201,7 @@ export const createFanController = (
     if (isRunning) return;
     isRunning = true;
     startTime = Date.now();
+    lastTickTime = Date.now();
 
     if (hardware.checkPrivileges) {
       try {
@@ -202,6 +239,7 @@ export const createFanController = (
     if (!isPrivileged) {
       throw new Error("Permission denied: Fan control requires root privileges");
     }
+    modeBeforeLidClosed = null;
     config.controller.mode = mode;
     saveConfig(config);
     if (mode === "auto") {
@@ -215,6 +253,7 @@ export const createFanController = (
     if (!isPrivileged) {
       throw new Error("Permission denied: Fan control requires root privileges");
     }
+    modeBeforeLidClosed = null;
     const fan = cachedFans.find((f) => f.id === fanId);
     const min = fan ? fan.minRpm : 1200;
     const max = fan ? fan.maxRpm : 6000;

@@ -39,4 +39,22 @@ describe("Privilege & Permission Handling", () => {
     expect(typeof activeSocket).toBe("string");
     expect(activeSocket.endsWith(".sock")).toBe(true);
   });
+
+  it("resolves helper path and system helper path on darwin", async () => {
+    const { resolveHelperPath, SYSTEM_HELPER_PATH, checkHelperPrivileges } =
+      await import("../../src/hardware/helper-auth");
+    expect(SYSTEM_HELPER_PATH).toBe("/Library/PrivilegedHelperTools/lazymacfan-helper");
+    const helperPath = resolveHelperPath();
+    expect(helperPath === null || typeof helperPath === "string").toBe(true);
+
+    const priv = await checkHelperPrivileges();
+    expect(typeof priv.privileged).toBe("boolean");
+  });
+
+  it("resolves executable path for background service", async () => {
+    const { resolveExecutablePath } = await import("../../src/service/launchd");
+    const exe = resolveExecutablePath();
+    expect(typeof exe).toBe("string");
+    expect(exe.length).toBeGreaterThan(0);
+  });
 });

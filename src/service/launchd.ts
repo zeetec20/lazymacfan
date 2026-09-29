@@ -2,6 +2,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { existsSync, mkdirSync, unlinkSync, writeFileSync } from "node:fs";
 import { getLogDir } from "../config/persistence";
+import { createIPCClient } from "../ipc/client";
 
 export const SERVICE_LABEL = "com.lazymacfan.agent";
 
@@ -91,10 +92,34 @@ export const uninstallService = async (): Promise<void> => {
   }
 };
 
+export const resolveExecutablePath = (): string => {
+  if (process.env["LAZYMACFAN_BIN"] && existsSync(process.env["LAZYMACFAN_BIN"])) {
+    return process.env["LAZYMACFAN_BIN"];
+  }
+
+  // If running compiled standalone binary (e.g. dist/lazymacfan)
+  if (!process.execPath.endsWith("/bun") && !process.execPath.endsWith("/node")) {
+    return process.execPath;
+  }
+
+  // If in dev environment, prefer dist/lazymacfan if built
+  const localDist = join(process.cwd(), "dist", "lazymacfan");
+  if (existsSync(localDist)) {
+    return localDist;
+  }
+
+  const systemPaths = ["/opt/homebrew/bin/lazymacfan", "/usr/local/bin/lazymacfan"];
+  for (const p of systemPaths) {
+    if (existsSync(p)) return p;
+  }
+
+  return process.execPath;
+};
+
 export const startService = async (executablePath?: string): Promise<void> => {
   const plistPath = getPlistPath();
+  const bin = executablePath ?? resolveExecutablePath();
   if (!existsSync(plistPath)) {
-    const bin = executablePath ?? process.execPath;
     await installService(bin);
   }
 
@@ -103,6 +128,51 @@ export const startService = async (executablePath?: string): Promise<void> => {
     stderr: "pipe",
   });
   await proc.exited;
+};
+
+export const restartService = async (executablePath?: string): Promise<void> => {
+  await stopService();
+  await startService(executablePath);
+};
+
+const waitForAgent = async (
+  client: ReturnType<typeof createIPCClient>,
+  attempts: number,
+): Promise<boolean> => {
+  if (attempts <= 0) return client.isAgentRunning();
+  if (await client.isAgentRunning()) return true;
+  await new Promise((r) => setTimeout(r, 100));
+  return waitForAgent(client, attempts - 1);
+};
+
+export const ensureAgentRunning = async (executablePath?: string): Promise<boolean> => {
+  const client = createIPCClient();
+  if (await client.isAgentRunning()) return true;
+
+  const bin = executablePath ?? resolveExecutablePath();
+
+  // 1. Try starting persistent background service via launchd
+  try {
+    await startService(bin);
+    if (await waitForAgent(client, 25)) return true;
+  } catch {
+    // launchctl may fail in restricted/sandbox environments
+  }
+
+  // 2. Fallback: spawn detached background process
+  try {
+    const proc = Bun.spawn([bin, "agent"], {
+      detached: true,
+      stdio: ["ignore", "ignore", "ignore"],
+    });
+    proc.unref();
+
+    if (await waitForAgent(client, 20)) return true;
+  } catch {
+    // ignore
+  }
+
+  return await client.isAgentRunning();
 };
 
 export const getServiceStatus = async (): Promise<{

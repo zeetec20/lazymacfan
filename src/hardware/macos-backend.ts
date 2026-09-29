@@ -9,32 +9,32 @@ export interface MacOSHardwareBackendInstance extends HardwareProvider {
   getAll: () => Promise<{ fans: Fan[]; sensors: TemperatureSensor[] }>;
 }
 
+export const SYSTEM_HELPER_PATH = "/Library/PrivilegedHelperTools/lazymacfan-helper";
+
+export const resolveHelperPath = (): string | null => {
+  if (process.env["LAZYMACFAN_HELPER_PATH"] && existsSync(process.env["LAZYMACFAN_HELPER_PATH"])) {
+    return process.env["LAZYMACFAN_HELPER_PATH"];
+  }
+
+  const execDir = dirname(process.execPath);
+  const adjacent = join(execDir, "lazymacfan-helper");
+  if (existsSync(adjacent)) return adjacent;
+
+  const candidates = [
+    SYSTEM_HELPER_PATH,
+    join(process.cwd(), "dist", "lazymacfan-helper"),
+    join(dirname(new URL(import.meta.url).pathname), "..", "..", "dist", "lazymacfan-helper"),
+    "/opt/homebrew/bin/lazymacfan-helper",
+    "/usr/local/bin/lazymacfan-helper",
+  ];
+
+  for (const c of candidates) {
+    if (existsSync(c)) return c;
+  }
+  return null;
+};
+
 export const createMacOSHardwareBackend = (): MacOSHardwareBackendInstance => {
-  const resolveHelperPath = (): string | null => {
-    if (
-      process.env["LAZYMACFAN_HELPER_PATH"] &&
-      existsSync(process.env["LAZYMACFAN_HELPER_PATH"])
-    ) {
-      return process.env["LAZYMACFAN_HELPER_PATH"];
-    }
-
-    const execDir = dirname(process.execPath);
-    const adjacent = join(execDir, "lazymacfan-helper");
-    if (existsSync(adjacent)) return adjacent;
-
-    const candidates = [
-      join(process.cwd(), "dist", "lazymacfan-helper"),
-      join(dirname(new URL(import.meta.url).pathname), "..", "..", "dist", "lazymacfan-helper"),
-      "/opt/homebrew/bin/lazymacfan-helper",
-      "/usr/local/bin/lazymacfan-helper",
-    ];
-
-    for (const c of candidates) {
-      if (existsSync(c)) return c;
-    }
-    return null;
-  };
-
   const isAvailable = async (): Promise<boolean> => {
     if (process.platform !== "darwin") return false;
     const path = resolveHelperPath();

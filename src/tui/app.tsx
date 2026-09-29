@@ -3,7 +3,8 @@ import { createCliRenderer } from "@opentui/core";
 import { createRoot, useKeyboard, useRenderer, useSelectionHandler } from "@opentui/react";
 import { createIPCClient } from "../ipc/client";
 import { loadConfig } from "../config/persistence";
-import { getServiceStatus } from "../service/launchd";
+import { getServiceStatus, ensureAgentRunning, restartService } from "../service/launchd";
+import { checkHelperPrivileges, authorizeHelper } from "../hardware/helper-auth";
 import type { ControllerStatus } from "../types/controller";
 import { resolveTheme, THEME_NAMES, type ThemeName } from "./theme";
 import { ThemeProvider } from "./ThemeContext";
@@ -326,17 +327,47 @@ const MainApp = () => {
 };
 
 export const runTui = async (): Promise<void> => {
+  // 1. Auto-check & prompt helper permissions on macOS if unprivileged
+  if (process.platform === "darwin") {
+    const priv = await checkHelperPrivileges();
+    if (!priv.privileged) {
+      console.log("Checking fan control permissions (AppleSMC write access)...");
+      const auth = await authorizeHelper();
+      if (auth.success) {
+        console.log("✅ Fan control authorized.");
+        // If an agent was already running unprivileged, restart it so it inherits root SMC permissions
+        const client = createIPCClient();
+        if (await client.isAgentRunning()) {
+          try {
+            await restartService();
+          } catch {
+            // ignore
+          }
+        }
+      } else {
+        console.log("⚠️ Running in Read-Only mode (fan speed adjustment disabled).");
+      }
+    }
+  }
+
+  // 2. Ensure persistent background agent is running
   const client = createIPCClient();
-  const isRunning = await client.isAgentRunning();
+  let isRunning = await client.isAgentRunning();
+
+  if (!isRunning) {
+    console.log("Starting lazymacfan background controller...");
+    await ensureAgentRunning();
+    isRunning = await client.isAgentRunning();
+  }
 
   if (!isRunning) {
     console.log("┌─ lazymacfan ─────────────────────────────────────────────┐");
-    console.log("│ Controller is not running.                               │");
+    console.log("│ Failed to start background controller.                   │");
     console.log("│                                                          │");
-    console.log("│ Start it with:                                           │");
+    console.log("│ Check logs:                                              │");
+    console.log("│   lazymacfan logs                                        │");
+    console.log("│ Or start manually:                                       │");
     console.log("│   lazymacfan agent                                       │");
-    console.log("│ or via background service:                               │");
-    console.log("│   lazymacfan service start                               │");
     console.log("└──────────────────────────────────────────────────────────┘");
     process.exit(1);
   }

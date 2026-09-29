@@ -13,6 +13,7 @@
     "build:release": "scripts/build-release.sh",
     "test": "bun --bun x vitest run",
     "test:bun": "bun test",
+    "test:unit": "bun test tests/unit",
     "typecheck": "tsc --noEmit",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix",

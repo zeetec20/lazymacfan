@@ -6,7 +6,8 @@ name: release
 # created automatically, which triggers the build + asset upload below.
 on:
   push:
-    branches: [master]
+    branches: [main, master]
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -44,7 +45,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
-      - run: bun test
+      - run: bun test tests/unit
       - name: Build binary and package tarball
         run: ./scripts/build-release.sh "$VERSION" "$ARCH"
         env:

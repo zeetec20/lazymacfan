@@ -1,16 +1,20 @@
 import { describe, expect, it } from "vitest";
-import { createMacOSHardwareBackend } from "../../src/hardware/macos-backend";
+import { createMacOSHardwareBackend, resolveHelperPath } from "../../src/hardware/macos-backend";
 
 describe("Live Hardware Backend (macOS)", () => {
   const backend = createMacOSHardwareBackend();
   const isDarwin = process.platform === "darwin";
+  const helperPath = resolveHelperPath();
+  const hasHelper = isDarwin && helperPath !== null;
+  const isPhysicalMac = hasHelper && !process.env.CI;
 
   it("checks hardware availability on macOS", async () => {
     const isAvail = await backend.isAvailable();
-    expect(isAvail).toBe(isDarwin);
+    expect(typeof isAvail).toBe("boolean");
+    expect(isAvail).toBe(hasHelper);
   });
 
-  it.skipIf(!isDarwin)("reads fans on supported Mac hardware", async () => {
+  it.skipIf(!isPhysicalMac)("reads fans on supported Mac hardware", async () => {
     const fans = await backend.getFans();
     expect(Array.isArray(fans)).toBe(true);
     for (const fan of fans) {
@@ -20,7 +24,7 @@ describe("Live Hardware Backend (macOS)", () => {
     }
   });
 
-  it.skipIf(!isDarwin)("reads temperature sensors on supported Mac hardware", async () => {
+  it.skipIf(!isPhysicalMac)("reads temperature sensors on supported Mac hardware", async () => {
     const sensors = await backend.getSensors();
     expect(Array.isArray(sensors)).toBe(true);
     expect(sensors.length).toBeGreaterThan(0);

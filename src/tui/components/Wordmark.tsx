@@ -64,7 +64,7 @@ export const Wordmark = ({ compact = false }: { compact?: boolean }) => {
   }
 
   return (
-    <box style={{ flexDirection: "column", alignItems: "center", paddingTop: 1, paddingBottom: 1 }}>
+    <box style={{ flexDirection: "column", alignItems: "center" }}>
       {ROWS.map((row, r) => (
         <box key={r} style={{ flexDirection: "row" }}>
           <text>

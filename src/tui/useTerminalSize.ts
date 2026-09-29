@@ -16,8 +16,8 @@ export const useTerminalSize = (): TerminalSize => {
   return {
     columns,
     rows,
-    isSmallScreen: columns < 115 || rows < 38,
-    isCompactHeight: rows < 38,
-    isCompactWidth: columns < 115,
+    isSmallScreen: columns < 95 || rows < 28,
+    isCompactHeight: rows < 28,
+    isCompactWidth: columns < 95,
   };
 };

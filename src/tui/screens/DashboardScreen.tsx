@@ -67,6 +67,7 @@ export const DashboardScreen = ({
         <box
           style={{
             flexGrow: 1,
+            flexShrink: 0,
             flexDirection: "column",
             borderStyle: "rounded",
             borderColor: theme.border,
@@ -82,7 +83,6 @@ export const DashboardScreen = ({
               flexDirection: "row",
               justifyContent: "space-between",
               alignItems: "center",
-              marginBottom: isCompactHeight ? 0 : 1,
             }}
           >
             <text attributes={TextAttributes.BOLD}>
@@ -108,13 +108,7 @@ export const DashboardScreen = ({
                   key={fan.id}
                   style={{
                     flexDirection: "column",
-                    borderStyle: "rounded",
-                    borderColor: isSelected ? theme.accent : theme.border,
-                    paddingLeft: 1,
-                    paddingRight: 1,
-                    paddingTop: 0,
-                    paddingBottom: 0,
-                    marginBottom: isCompactHeight ? 0 : 1,
+                    gap: 0,
                     flexShrink: 0,
                   }}
                 >
@@ -123,8 +117,10 @@ export const DashboardScreen = ({
                       fg={isSelected ? theme.accent : theme.fg}
                       attributes={isSelected ? TextAttributes.BOLD : undefined}
                     >
-                      {isSelected ? "▶ " : "  "}
-                      {fan.name}
+                      <span fg={isSelected ? theme.accent : theme.muted}>
+                        {isSelected ? "▶ " : "  "}
+                      </span>
+                      <span>{fan.name}</span>
                     </text>
                     <text>
                       <span
@@ -158,7 +154,7 @@ export const DashboardScreen = ({
                     </text>
                   </box>
 
-                  <box style={{ marginTop: 0, marginBottom: isCompactHeight ? 0 : 1 }}>
+                  <box style={{ marginTop: 0, marginBottom: 0 }}>
                     <Gauge
                       value={fan.currentRpm}
                       min={fan.minRpm}

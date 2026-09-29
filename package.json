@@ -1,6 +1,6 @@
 {
   "name": "lazymacfan",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Lightweight macOS TUI application and background fan controller",
   "type": "module",
   "main": "src/cli/index.ts",

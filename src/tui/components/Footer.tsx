@@ -42,7 +42,7 @@ export const Footer = () => {
           </box>
         ))}
       </box>
-      {columns >= 85 ? (
+      {columns >= 90 ? (
         <box style={{ flexDirection: "row" }}>
           <text fg={theme.muted}>
             <span>lazymacfan 🌀</span>

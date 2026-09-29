@@ -145,10 +145,16 @@ export const DashboardScreen = ({
                   >
                     <text fg={theme.fg}>
                       <span>{Math.round(fan.currentRpm)} RPM</span>
-                      <span fg={theme.muted}> / Target: {Math.round(fan.targetRpm)} RPM</span>
+                      {isCompactWidth ? (
+                        <span fg={theme.muted}> (tgt: {Math.round(fan.targetRpm)})</span>
+                      ) : (
+                        <span fg={theme.muted}> / Target: {Math.round(fan.targetRpm)} RPM</span>
+                      )}
                     </text>
                     <text fg={theme.muted}>
-                      {Math.round(fan.minRpm)} - {Math.round(fan.maxRpm)} RPM
+                      {isCompactWidth
+                        ? `${Math.round(fan.minRpm)}-${Math.round(fan.maxRpm)}`
+                        : `${Math.round(fan.minRpm)} - ${Math.round(fan.maxRpm)} RPM`}
                     </text>
                   </box>
 
@@ -316,11 +322,13 @@ export const DashboardScreen = ({
 
           <box style={{ height: 1, flexShrink: 0 }}>
             <text fg={theme.muted}>
-              <span>Monitored sensors: </span>
+              <span>Monitored: </span>
               <span fg={theme.accent} attributes={TextAttributes.BOLD}>
                 {status.sensors.length}
               </span>
-              <span> sensors discovered via IOHID & SMC</span>
+              <span>
+                {isCompactWidth ? " active sensors" : " sensors discovered via IOHID & SMC"}
+              </span>
             </text>
           </box>
         </box>
@@ -389,9 +397,11 @@ export const DashboardScreen = ({
               flexShrink: 0,
             }}
           >
-            <text fg={theme.muted}>🚨 Emergency Cutoff:</text>
+            <text fg={theme.muted}>
+              {isCompactWidth ? "🚨 Emergency:" : "🚨 Emergency Cutoff:"}
+            </text>
             <text fg={theme.tempCritical} attributes={TextAttributes.BOLD}>
-              {status.emergencyTemperatureC}°C (Max Fan Speed)
+              {status.emergencyTemperatureC}°C{isCompactWidth ? " (Max)" : " (Max Fan Speed)"}
             </text>
           </box>
 

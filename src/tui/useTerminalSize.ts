@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useTerminalDimensions } from "@opentui/react";
 
 export interface TerminalSize {
   columns: number;
@@ -9,30 +9,15 @@ export interface TerminalSize {
 }
 
 export const useTerminalSize = (): TerminalSize => {
-  const [size, setSize] = useState({
-    columns: process.stdout.columns ?? 80,
-    rows: process.stdout.rows ?? 24,
-  });
-
-  useEffect(() => {
-    const onResize = () => {
-      setSize({
-        columns: process.stdout.columns ?? 80,
-        rows: process.stdout.rows ?? 24,
-      });
-    };
-
-    process.stdout.on("resize", onResize);
-    return () => {
-      process.stdout.off("resize", onResize);
-    };
-  }, []);
+  const dims = useTerminalDimensions();
+  const columns = dims?.width && dims.width > 0 ? dims.width : (process.stdout.columns ?? 80);
+  const rows = dims?.height && dims.height > 0 ? dims.height : (process.stdout.rows ?? 24);
 
   return {
-    columns: size.columns,
-    rows: size.rows,
-    isSmallScreen: size.columns < 95 || size.rows < 28,
-    isCompactHeight: size.rows < 28,
-    isCompactWidth: size.columns < 95,
+    columns,
+    rows,
+    isSmallScreen: columns < 115 || rows < 38,
+    isCompactHeight: rows < 38,
+    isCompactWidth: columns < 115,
   };
 };

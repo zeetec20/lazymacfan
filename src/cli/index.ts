@@ -7,17 +7,21 @@ import { getServiceStatus, startService, stopService } from "../service/launchd"
 import {
   checkHelperPrivileges,
   authorizeHelper,
+  ensureHelperAuthorized,
   resolveHelperPath,
   SYSTEM_HELPER_PATH,
 } from "../hardware/helper-auth";
+import { handleUpdateCommand } from "./update";
+import { handleUninstallCommand } from "./uninstall";
+import pkg from "../../package.json";
 
-const VERSION = "0.1.0";
+const VERSION = pkg.version;
 
 const printHelp = (): void => {
   console.log(`lazymacfan v${VERSION} — macOS Fan Control & Temperature Monitor
 
 USAGE:
-  lazymacfan                      Launch interactive Terminal UI (OpenTUI)
+  lazymacfan [--read-only]        Launch interactive Terminal UI (OpenTUI)
   lazymacfan agent                Run persistent background controller daemon
   lazymacfan status               Show controller and hardware status
   lazymacfan fans                 List detected fans and speeds
@@ -26,13 +30,16 @@ USAGE:
   lazymacfan mode <auto|manual>   Switch between auto and manual fan modes
   lazymacfan helper <command>     Manage helper permissions (setuid root for AppleSMC)
   lazymacfan service <command>    Manage background launchd service
+  lazymacfan update [--check]     Check for or install updates
+  lazymacfan uninstall [--purge]  Uninstall background service, helper, and binary
   lazymacfan logs [--follow]      View background agent logs
+  lazymacfan --read-only, -r      Launch TUI in read-only monitor mode
   lazymacfan --version, -v        Print version information
   lazymacfan --help, -h           Show this help message
 
 HELPER COMMANDS:
   status                          Check if helper binary has root privileges
-  setup                           Authorize helper binary with setuid root (requires sudo)
+  setup                           Authorize helper binary (prompts macOS Touch ID / Admin)
 
 SERVICE COMMANDS:
   start                           Install and start background launchd agent
@@ -46,7 +53,50 @@ const main = async (): Promise<void> => {
   const args = process.argv.slice(2);
   const command = args[0];
 
-  if (!command) {
+  const isReadOnlyFlag =
+    command === "--read-only" ||
+    command === "-r" ||
+    args.includes("--read-only") ||
+    args.includes("-r");
+
+  if (!command || isReadOnlyFlag) {
+    const priv = await checkHelperPrivileges();
+
+    if (!priv.privileged && !isReadOnlyFlag) {
+      if (process.stdout.isTTY && !process.env["LAZYMACFAN_NO_AUTH"]) {
+        console.log("lazymacfan — macOS Fan Control & Hardware Monitor\n");
+        console.log("🔒 Hardware Access Required:");
+        console.log(
+          "lazymacfan requires administrator authorization to control fan speeds via AppleSMC.",
+        );
+        console.log(
+          "Requesting authorization via macOS system dialog (Touch ID / Admin password)...\n",
+        );
+
+        const auth = await authorizeHelper();
+        if (auth.success) {
+          console.log("✅ Access granted! Launching lazymacfan...\n");
+          await runTui();
+          return;
+        }
+
+        console.error("❌ Hardware Access Denied\n");
+        console.error("The UI cannot be launched without hardware access to AppleSMC.");
+        console.error("\nTo grant access manually, run:");
+        console.error("  sudo lazymacfan helper setup\n");
+        console.error("Or re-run lazymacfan and approve the macOS prompt:");
+        console.error("  lazymacfan\n");
+        console.error("To launch in read-only monitor mode without fan control:");
+        console.error("  lazymacfan --read-only\n");
+        process.exit(1);
+      } else {
+        console.error(
+          "❌ Hardware Access Required: run 'sudo lazymacfan helper setup' or 'lazymacfan --read-only'.",
+        );
+        process.exit(1);
+      }
+    }
+
     await runTui();
     return;
   }
@@ -89,7 +139,7 @@ const main = async (): Promise<void> => {
       console.log(`Uptime:       ${h}h ${m}m`);
       const privStr =
         status.privileged === false
-          ? "Read-Only (Run 'sudo lazymacfan helper setup' to enable control)"
+          ? "Read-Only (Run 'lazymacfan helper setup' or launch lazymacfan to authorize)"
           : "Full Control (Read/Write)";
       console.log(`Privileges:   ${privStr}`);
       if (status.error) {
@@ -168,10 +218,21 @@ const main = async (): Promise<void> => {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       if (/permission denied|privilege|EPERM/i.test(msg)) {
-        console.error(`\n❌ Fan Speed Control Error:\n${msg}`);
-        console.error(
-          "\n💡 To enable hardware fan control, authorize the helper binary with setuid root:\n  sudo lazymacfan helper setup\n",
+        console.log(
+          "Hardware access requires administrator authorization. Requesting via macOS dialog...",
         );
+        const authorized = await ensureHelperAuthorized();
+        if (authorized) {
+          try {
+            await client.setFanSpeed(fanId, rpm);
+            console.log(`Set Fan ${fanId} target speed to ${rpm} RPM (Mode: Manual)`);
+            return;
+          } catch (retryErr) {
+            console.error(retryErr instanceof Error ? retryErr.message : String(retryErr));
+            process.exit(1);
+          }
+        }
+        console.error("\n❌ Authorization cancelled or failed. Fan speed was not changed.");
       } else {
         console.error(msg);
       }
@@ -191,7 +252,26 @@ const main = async (): Promise<void> => {
       await client.setMode(modeStr);
       console.log(`Controller mode set to: ${modeStr.toUpperCase()}`);
     } catch (err) {
-      console.error(err instanceof Error ? err.message : String(err));
+      const msg = err instanceof Error ? err.message : String(err);
+      if (/permission denied|privilege|EPERM/i.test(msg)) {
+        console.log(
+          "Hardware access requires administrator authorization. Requesting via macOS dialog...",
+        );
+        const authorized = await ensureHelperAuthorized();
+        if (authorized) {
+          try {
+            await client.setMode(modeStr);
+            console.log(`Controller mode set to: ${modeStr.toUpperCase()}`);
+            return;
+          } catch (retryErr) {
+            console.error(retryErr instanceof Error ? retryErr.message : String(retryErr));
+            process.exit(1);
+          }
+        }
+        console.error("\n❌ Authorization cancelled or failed. Controller mode was not changed.");
+      } else {
+        console.error(msg);
+      }
       process.exit(1);
     }
     return;
@@ -325,6 +405,16 @@ const main = async (): Promise<void> => {
       process.exit(0);
     });
     await proc.exited;
+    return;
+  }
+
+  if (command === "update") {
+    await handleUpdateCommand(args.slice(1));
+    return;
+  }
+
+  if (command === "uninstall") {
+    await handleUninstallCommand(args.slice(1));
     return;
   }
 

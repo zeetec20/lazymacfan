@@ -294,7 +294,11 @@ export const SettingsScreen = ({
             <box style={{ marginTop: 0 }}>
               {status?.privileged === false ? (
                 <text fg={theme.tempWarm}>
-                  Run &apos;sudo lazymacfan helper setup&apos; in terminal to enable fan control.
+                  <span>Press </span>
+                  <span fg={theme.accent} attributes={TextAttributes.BOLD}>
+                    [A]
+                  </span>
+                  <span> to authorize hardware control (Touch ID / Admin)</span>
                 </text>
               ) : (
                 <text fg={theme.muted}>Service CLI: lazymacfan service start | stop | status</text>

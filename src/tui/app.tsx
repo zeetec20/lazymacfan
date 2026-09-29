@@ -320,6 +320,22 @@ const MainApp = () => {
       showToast("Telemetry refreshed", "success");
       return;
     }
+
+    if (name === "a") {
+      if (status?.privileged === false) {
+        showToast("Requesting authorization via macOS system dialog...", "info", 4000);
+        void (async () => {
+          const res = await authorizeHelper();
+          if (res.success) {
+            showToast("Helper authorized! Full fan control enabled.", "success", 4000);
+            await fetchStatus();
+          } else {
+            showToast(`Authorization: ${res.error ?? "Cancelled"}`, "warning", 4000);
+          }
+        })();
+        return;
+      }
+    }
   });
 
   const tabs: TabItem[] = useMemo(

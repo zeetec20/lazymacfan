@@ -1,18 +1,28 @@
+# TEMPLATE — do not install this file directly without filling placeholders.
+# Run scripts/gen-formula.sh to generate the filled-in formula at dist/lazymacfan.rb,
+# then copy that into your homebrew-tap's Formula/ directory.
 class Lazymacfan < Formula
   desc "Lightweight macOS TUI application and background fan controller"
-  homepage "https://github.com/zeetec/lazymacfan"
-  url "https://github.com/zeetec/lazymacfan/releases/download/v0.1.0/lazymacfan-v0.1.0-universal.tar.gz"
-  version "0.1.0"
-  sha256 "f6a3069e485996fba1646829b46c30f70933b97dcee62d200ebd0631144a26f9" # Updated on release packaging
+  homepage "https://github.com/__GH_OWNER__/lazymacfan"
+  version "__VERSION__"
   license "MIT"
-  head "https://github.com/zeetec/lazymacfan.git", branch: "main"
 
   depends_on :macos
   depends_on arch: [:arm64, :x86_64]
 
+  on_arm do
+    url "https://github.com/__GH_OWNER__/lazymacfan/releases/download/v#{version}/lazymacfan-darwin-arm64.tar.gz"
+    sha256 "__SHA_ARM64__"
+  end
+
+  on_intel do
+    url "https://github.com/__GH_OWNER__/lazymacfan/releases/download/v#{version}/lazymacfan-darwin-x64.tar.gz"
+    sha256 "__SHA_X64__"
+  end
+
   def install
-    bin.install "dist/lazymacfan"
-    bin.install "dist/lazymacfan-helper" if File.exist?("dist/lazymacfan-helper")
+    bin.install "lazymacfan"
+    bin.install "lazymacfan-helper" if File.exist?("lazymacfan-helper")
   end
 
   def post_install
@@ -29,8 +39,9 @@ class Lazymacfan < Formula
   def caveats
     <<~EOS
       Writing fan speeds via AppleSMC on macOS requires root privileges.
-      To allow standard users and background agents to adjust fan speeds without sudo:
-        sudo lazymacfan helper setup
+      lazymacfan will automatically prompt for one-time Touch ID / admin
+      authorization when first launched, or you can run:
+        lazymacfan helper setup
     EOS
   end
 

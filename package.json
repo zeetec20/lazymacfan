@@ -10,6 +10,7 @@
   "scripts": {
     "dev": "bun run src/cli/index.ts",
     "build": "bun run scripts/build.ts",
+    "build:release": "scripts/build-release.sh",
     "test": "bun --bun x vitest run",
     "test:bun": "bun test",
     "typecheck": "tsc --noEmit",

@@ -112,6 +112,7 @@ export const DashboardScreen = ({
                     paddingTop: 0,
                     paddingBottom: 0,
                     marginBottom: 1,
+                    flexShrink: 0,
                   }}
                 >
                   <box style={{ flexDirection: "row", justifyContent: "space-between" }}>
@@ -169,18 +170,15 @@ export const DashboardScreen = ({
         {/* Thermal Overview Card */}
         <box
           style={{
-            flexGrow: 1,
             flexDirection: "column",
             borderStyle: "rounded",
             borderColor: theme.border,
             paddingLeft: 2,
             paddingRight: 2,
-            paddingTop: 1,
-            paddingBottom: 1,
-            gap: 1,
+            flexShrink: 0,
           }}
         >
-          <box style={{ flexDirection: "row", alignItems: "center", marginBottom: 1 }}>
+          <box style={{ flexDirection: "row", alignItems: "center", height: 1, flexShrink: 0 }}>
             <text attributes={TextAttributes.BOLD}>
               <span fg={theme.tempWarm}>🔥 </span>
               <span fg={theme.fg}>Core Temperature Telemetry</span>
@@ -188,8 +186,22 @@ export const DashboardScreen = ({
           </box>
 
           {/* CPU Row */}
-          <box style={{ flexDirection: "column", marginBottom: 1 }}>
-            <box style={{ flexDirection: "row", justifyContent: "space-between" }}>
+          <box
+            style={{
+              height: 2,
+              minHeight: 2,
+              flexShrink: 0,
+              flexDirection: "column",
+            }}
+          >
+            <box
+              style={{
+                height: 1,
+                flexShrink: 0,
+                flexDirection: "row",
+                justifyContent: "space-between",
+              }}
+            >
               <text fg={theme.fg}>
                 <span attributes={TextAttributes.BOLD}>⚡ CPU Package / Die</span>
                 <span fg={theme.muted}> ({cpuSensor?.name ?? "Auto"})</span>
@@ -198,19 +210,35 @@ export const DashboardScreen = ({
                 {cpuTemp.toFixed(1)}°C
               </text>
             </box>
-            <Gauge
-              value={cpuTemp}
-              min={30}
-              max={105}
-              width={34}
-              isTemperature
-              showPercentage={false}
-            />
+            <box style={{ height: 1, flexShrink: 0 }}>
+              <Gauge
+                value={cpuTemp}
+                min={30}
+                max={105}
+                width={28}
+                isTemperature
+                showPercentage={false}
+              />
+            </box>
           </box>
 
           {/* GPU Row */}
-          <box style={{ flexDirection: "column", marginBottom: 1 }}>
-            <box style={{ flexDirection: "row", justifyContent: "space-between" }}>
+          <box
+            style={{
+              height: 2,
+              minHeight: 2,
+              flexShrink: 0,
+              flexDirection: "column",
+            }}
+          >
+            <box
+              style={{
+                height: 1,
+                flexShrink: 0,
+                flexDirection: "row",
+                justifyContent: "space-between",
+              }}
+            >
               <text fg={theme.fg}>
                 <span attributes={TextAttributes.BOLD}>🎮 GPU Core</span>
                 <span fg={theme.muted}> ({gpuSensor?.name ?? "GPU"})</span>
@@ -219,19 +247,35 @@ export const DashboardScreen = ({
                 {gpuTemp.toFixed(1)}°C
               </text>
             </box>
-            <Gauge
-              value={gpuTemp}
-              min={30}
-              max={105}
-              width={34}
-              isTemperature
-              showPercentage={false}
-            />
+            <box style={{ height: 1, flexShrink: 0 }}>
+              <Gauge
+                value={gpuTemp}
+                min={30}
+                max={105}
+                width={28}
+                isTemperature
+                showPercentage={false}
+              />
+            </box>
           </box>
 
           {/* Battery Row */}
-          <box style={{ flexDirection: "column", marginBottom: 1 }}>
-            <box style={{ flexDirection: "row", justifyContent: "space-between" }}>
+          <box
+            style={{
+              height: 2,
+              minHeight: 2,
+              flexShrink: 0,
+              flexDirection: "column",
+            }}
+          >
+            <box
+              style={{
+                height: 1,
+                flexShrink: 0,
+                flexDirection: "row",
+                justifyContent: "space-between",
+              }}
+            >
               <text fg={theme.fg}>
                 <span attributes={TextAttributes.BOLD}>🔋 Battery Module</span>
                 <span fg={theme.muted}> ({batSensor?.name ?? "Battery"})</span>
@@ -240,17 +284,19 @@ export const DashboardScreen = ({
                 {batTemp.toFixed(1)}°C
               </text>
             </box>
-            <Gauge
-              value={batTemp}
-              min={20}
-              max={65}
-              width={34}
-              isTemperature
-              showPercentage={false}
-            />
+            <box style={{ height: 1, flexShrink: 0 }}>
+              <Gauge
+                value={batTemp}
+                min={20}
+                max={65}
+                width={28}
+                isTemperature
+                showPercentage={false}
+              />
+            </box>
           </box>
 
-          <box style={{ marginTop: 1 }}>
+          <box style={{ height: 1, flexShrink: 0 }}>
             <text fg={theme.muted}>
               <span>Monitored sensors: </span>
               <span fg={theme.accent} attributes={TextAttributes.BOLD}>
@@ -268,26 +314,38 @@ export const DashboardScreen = ({
             borderColor: theme.border,
             paddingLeft: 2,
             paddingRight: 2,
-            paddingTop: 1,
-            paddingBottom: 1,
-            gap: 1,
+            flexShrink: 0,
           }}
         >
-          <box style={{ flexDirection: "row", alignItems: "center", marginBottom: 1 }}>
+          <box style={{ flexDirection: "row", alignItems: "center", height: 1, flexShrink: 0 }}>
             <text attributes={TextAttributes.BOLD}>
               <span fg={theme.accent}>🔰 </span>
               <span fg={theme.fg}>Controller Health & Guardian</span>
             </text>
           </box>
 
-          <box style={{ flexDirection: "row", justifyContent: "space-between" }}>
+          <box
+            style={{
+              flexDirection: "row",
+              justifyContent: "space-between",
+              height: 1,
+              flexShrink: 0,
+            }}
+          >
             <text fg={theme.muted}>🟢 Status:</text>
             <text fg={theme.tempCool} attributes={TextAttributes.BOLD}>
               ● ACTIVE (PID {status.pid})
             </text>
           </box>
 
-          <box style={{ flexDirection: "row", justifyContent: "space-between" }}>
+          <box
+            style={{
+              flexDirection: "row",
+              justifyContent: "space-between",
+              height: 1,
+              flexShrink: 0,
+            }}
+          >
             <text fg={theme.muted}>Mode:</text>
             <text
               fg={status.mode === "manual" ? theme.fanManual : theme.fanAuto}
@@ -297,19 +355,40 @@ export const DashboardScreen = ({
             </text>
           </box>
 
-          <box style={{ flexDirection: "row", justifyContent: "space-between" }}>
+          <box
+            style={{
+              flexDirection: "row",
+              justifyContent: "space-between",
+              height: 1,
+              flexShrink: 0,
+            }}
+          >
             <text fg={theme.muted}>🚨 Emergency Cutoff:</text>
             <text fg={theme.tempCritical} attributes={TextAttributes.BOLD}>
               {status.emergencyTemperatureC}°C (Max Fan Speed)
             </text>
           </box>
 
-          <box style={{ flexDirection: "row", justifyContent: "space-between" }}>
+          <box
+            style={{
+              flexDirection: "row",
+              justifyContent: "space-between",
+              height: 1,
+              flexShrink: 0,
+            }}
+          >
             <text fg={theme.muted}>Uptime:</text>
             <text fg={theme.fg}>{uptimeStr}</text>
           </box>
 
-          <box style={{ flexDirection: "row", justifyContent: "space-between" }}>
+          <box
+            style={{
+              flexDirection: "row",
+              justifyContent: "space-between",
+              height: 1,
+              flexShrink: 0,
+            }}
+          >
             <text fg={theme.muted}>🔐 Hardware Access:</text>
             <text
               fg={status.privileged === false ? theme.tempWarm : theme.tempCool}
@@ -320,7 +399,7 @@ export const DashboardScreen = ({
           </box>
 
           {status.error ? (
-            <box style={{ marginTop: 1 }}>
+            <box style={{ height: 1, flexShrink: 0 }}>
               <text fg={theme.tempWarm}>⚠ {status.error}</text>
             </box>
           ) : null}

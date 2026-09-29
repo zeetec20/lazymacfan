@@ -1,0 +1,107 @@
+name: release
+
+# Auto-tagging via release-please (Conventional Commits).
+# Push `feat:` / `fix:` commits to main -> release-please opens/updates a "release PR"
+# that bumps package.json + CHANGELOG. Merge it -> a git tag + GitHub release are
+# created automatically, which triggers the build + asset upload below.
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.rp.outputs.release_created }}
+      tag_name: ${{ steps.rp.outputs.tag_name }}
+      version: ${{ steps.rp.outputs.version }}
+    steps:
+      - uses: googleapis/release-please-action@v4
+        id: rp
+        with:
+          token: ${{ secrets.TAP_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
+
+  build:
+    needs: release-please
+    if: ${{ needs.release-please.outputs.release_created == 'true' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14         # Apple Silicon
+            platform: darwin
+            arch: arm64
+          - os: macos-15-intel   # Intel — native x86_64 runner
+            platform: darwin
+            arch: x64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: bun test
+      - name: Build binary and package tarball
+        run: ./scripts/build-release.sh "$VERSION" "$ARCH"
+        env:
+          VERSION: ${{ needs.release-please.outputs.version }}
+          ARCH: ${{ matrix.arch }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lazymacfan-${{ matrix.platform }}-${{ matrix.arch }}
+          path: |
+            dist/lazymacfan-${{ matrix.platform }}-${{ matrix.arch }}.tar.gz
+            dist/lazymacfan-${{ matrix.platform }}-${{ matrix.arch }}.sha256
+
+  publish:
+    needs: [release-please, build]
+    if: ${{ needs.release-please.outputs.release_created == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Generate formula
+        run: |
+          ./scripts/gen-formula.sh \
+            "$VERSION" \
+            "$GH_OWNER" \
+            "$(cat dist/lazymacfan-darwin-arm64.sha256)" \
+            "$(cat dist/lazymacfan-darwin-x64.sha256)"
+        env:
+          VERSION: ${{ needs.release-please.outputs.version }}
+          GH_OWNER: ${{ github.repository_owner }}
+      - name: Upload assets to GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.release-please.outputs.tag_name }}
+        run: |
+          gh release upload "$TAG" \
+            dist/lazymacfan-darwin-arm64.tar.gz \
+            dist/lazymacfan-darwin-arm64.sha256 \
+            dist/lazymacfan-darwin-x64.tar.gz \
+            dist/lazymacfan-darwin-x64.sha256 \
+            dist/lazymacfan.rb \
+            --clobber
+      - name: Update Homebrew tap
+        if: ${{ env.TAP_TOKEN != '' }}
+        env:
+          TAP_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
+          VERSION: ${{ needs.release-please.outputs.version }}
+          GH_OWNER: ${{ github.repository_owner }}
+        run: |
+          git clone "https://x-access-token:${TAP_TOKEN}@github.com/${GH_OWNER}/homebrew-tap.git" tap || \
+          git clone "https://x-access-token:${TAP_TOKEN}@github.com/${GH_OWNER}/homebrew-lazymacfan.git" tap
+          mkdir -p tap/Formula
+          cp dist/lazymacfan.rb tap/Formula/lazymacfan.rb
+          cd tap
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/lazymacfan.rb
+          git commit -m "lazymacfan v${VERSION}" || echo "no changes"
+          git push

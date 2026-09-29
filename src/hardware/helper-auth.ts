@@ -41,6 +41,35 @@ export const checkHelperPrivileges = async (): Promise<{
   }
 };
 
+export const posixQuote = (str: string): string => `'${str.replace(/'/g, "'\\''")}'`;
+
+/**
+ * Runs a list of shell commands with administrator privileges via macOS osascript,
+ * correctly escaping arguments for both POSIX shell and AppleScript string literals.
+ */
+export const runElevatedShellScript = (
+  commands: string[],
+  prompt: string,
+): { success: boolean; exitCode: number; stdout: string; stderr: string; cancelled: boolean } => {
+  const shellScript = commands.join(" && ");
+  const escapedAppleScript = shellScript.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+  const escapedPrompt = prompt.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+  const osascriptCode = `do shell script "${escapedAppleScript}" with administrator privileges with prompt "${escapedPrompt}"`;
+
+  const proc = Bun.spawnSync(["osascript", "-e", osascriptCode]);
+  const stderr = proc.stderr.toString().trim();
+  const stdout = proc.stdout.toString().trim();
+  const cancelled = stderr.includes("-128");
+
+  return {
+    success: proc.exitCode === 0,
+    exitCode: proc.exitCode,
+    stdout,
+    stderr,
+    cancelled,
+  };
+};
+
 /**
  * Automatically authorizes lazymacfan-helper with setuid root permissions.
  * If running under sudo, executes direct chmod/chown commands.
@@ -92,23 +121,22 @@ export const authorizeHelper = async (
 
   // Not root: execute via osascript with administrator privileges
   try {
-    const commands = [
-      "mkdir -p /Library/PrivilegedHelperTools",
-      `cp "${srcPath}" "${SYSTEM_HELPER_PATH}"`,
-      `chown root:wheel "${SYSTEM_HELPER_PATH}" "${srcPath}"`,
-      `chmod 4755 "${SYSTEM_HELPER_PATH}" "${srcPath}"`,
-    ];
+    const commands = ["mkdir -p /Library/PrivilegedHelperTools"];
+    if (srcPath !== SYSTEM_HELPER_PATH) {
+      commands.push(`cp ${posixQuote(srcPath)} ${posixQuote(SYSTEM_HELPER_PATH)}`);
+      commands.push(`chown root:wheel ${posixQuote(SYSTEM_HELPER_PATH)} ${posixQuote(srcPath)}`);
+      commands.push(`chmod 4755 ${posixQuote(SYSTEM_HELPER_PATH)} ${posixQuote(srcPath)}`);
+    } else {
+      commands.push(`chown root:wheel ${posixQuote(SYSTEM_HELPER_PATH)}`);
+      commands.push(`chmod 4755 ${posixQuote(SYSTEM_HELPER_PATH)}`);
+    }
 
-    const shellScript = commands.join(" && ");
-    const osascriptCode = `do shell script "${shellScript}" with administrator privileges with prompt "${prompt}"`;
+    const res = runElevatedShellScript(commands, prompt);
 
-    const proc = Bun.spawnSync(["osascript", "-e", osascriptCode]);
-
-    if (proc.exitCode !== 0) {
-      const stderr = proc.stderr.toString().trim();
+    if (!res.success) {
       return {
         success: false,
-        error: stderr.includes("-128") ? "Authorization cancelled by user." : stderr,
+        error: res.cancelled ? "Authorization cancelled by user." : res.stderr,
       };
     }
 
@@ -117,4 +145,35 @@ export const authorizeHelper = async (
   } catch (err) {
     return { success: false, error: err instanceof Error ? err.message : String(err) };
   }
+};
+
+/**
+ * Ensures helper is authorized before operations that require root SMC access.
+ * If unprivileged, automatically triggers macOS GUI prompt.
+ */
+export const ensureHelperAuthorized = async (options?: { silent?: boolean }): Promise<boolean> => {
+  if (process.platform !== "darwin") return true;
+
+  const priv = await checkHelperPrivileges();
+  if (priv.privileged) return true;
+
+  if (process.env["LAZYMACFAN_NO_AUTH"] === "1") return false;
+
+  if (!options?.silent) {
+    console.log("Hardware fan control helper requires one-time administrator authorization.");
+    console.log("Requesting authorization via macOS system dialog (Touch ID / Password)...");
+  }
+
+  const res = await authorizeHelper();
+  if (res.success) {
+    if (!options?.silent) {
+      console.log("✅ Helper authorized successfully with full fan control.\n");
+    }
+    return true;
+  }
+
+  if (!options?.silent) {
+    console.warn(`Notice: ${res.error ?? "Authorization cancelled"}. Running in read-only mode.\n`);
+  }
+  return false;
 };

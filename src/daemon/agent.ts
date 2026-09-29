@@ -1,25 +1,25 @@
 import { appendFileSync } from "node:fs";
 import { getLogPath } from "../config/persistence";
-import { FanControllerService } from "../controller/controller";
-import { MacOSHardwareBackend } from "../hardware/macos-backend";
-import { MockHardwareBackend } from "../hardware/mock-backend";
-import { IPCServer } from "../ipc/server";
+import { createFanController } from "../controller/controller";
+import { createMacOSHardwareBackend } from "../hardware/macos-backend";
+import { createMockHardwareBackend } from "../hardware/mock-backend";
+import { createIPCServer } from "../ipc/server";
 
-export function logEvent(level: "INFO" | "WARN" | "ERROR", message: string): void {
+export const logEvent = (level: "INFO" | "WARN" | "ERROR", message: string): void => {
   const line = `[${new Date().toISOString()}] [${level}] ${message}\n`;
   try {
     appendFileSync(getLogPath(), line, "utf-8");
   } catch {
     // fallback to stderr
   }
-}
+};
 
-export async function runAgentDaemon(): Promise<void> {
+export const runAgentDaemon = async (): Promise<void> => {
   logEvent("INFO", `lazymacfan agent starting (PID ${process.pid})`);
 
-  const macBackend = new MacOSHardwareBackend();
+  const macBackend = createMacOSHardwareBackend();
   const isMac = await macBackend.isAvailable();
-  const hardware = isMac ? macBackend : new MockHardwareBackend();
+  const hardware = isMac ? macBackend : createMockHardwareBackend();
 
   if (!isMac) {
     logEvent(
@@ -28,8 +28,8 @@ export async function runAgentDaemon(): Promise<void> {
     );
   }
 
-  const controller = new FanControllerService(hardware);
-  const ipcServer = new IPCServer(controller);
+  const controller = createFanController(hardware);
+  const ipcServer = createIPCServer(controller);
 
   ipcServer.start();
   await controller.start();
@@ -37,7 +37,7 @@ export async function runAgentDaemon(): Promise<void> {
   logEvent("INFO", "lazymacfan agent running and listening on IPC socket");
 
   let isShuttingDown = false;
-  const shutdown = async (signal: string) => {
+  const shutdown = async (signal: string): Promise<void> => {
     if (isShuttingDown) return;
     isShuttingDown = true;
     logEvent("INFO", `Received ${signal}, shutting down gracefully...`);
@@ -59,4 +59,4 @@ export async function runAgentDaemon(): Promise<void> {
     logEvent("INFO", "Received SIGHUP, reloading configuration");
     controller.reloadConfig();
   });
-}
+};

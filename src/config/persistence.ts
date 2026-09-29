@@ -5,20 +5,32 @@ import { parse, stringify } from "smol-toml";
 import { type AppConfig, DEFAULT_CONFIG } from "./config";
 import type { ControllerStatus } from "../types/controller";
 
-export function getAppDataDir(): string {
-  const home = homedir();
-  const dir =
-    process.platform === "darwin"
-      ? join(home, "Library", "Application Support", "lazymacfan")
-      : join(home, ".config", "lazymacfan");
+/** Expand a leading `~` to the user's home directory. */
+export const expandHome = (path: string): string => {
+  const p = path.trim();
+  if (p === "~") return homedir();
+  if (p.startsWith("~/")) return join(homedir(), p.slice(2));
+  return p;
+};
 
-  if (!existsSync(dir)) {
-    mkdirSync(dir, { recursive: true });
+const baseConfigDir =
+  process.env.XDG_CONFIG_HOME && process.env.XDG_CONFIG_HOME.trim()
+    ? process.env.XDG_CONFIG_HOME
+    : join(homedir(), ".config");
+
+export const CONFIG_DIR = join(baseConfigDir, "lazymacfan");
+export const CONFIG_FILE = join(CONFIG_DIR, "config.toml");
+export const STATE_FILE = join(CONFIG_DIR, "state.json");
+export const USER_SOCKET_FILE = join(CONFIG_DIR, "lazymacfan.sock");
+
+export const getAppDataDir = (): string => {
+  if (!existsSync(CONFIG_DIR)) {
+    mkdirSync(CONFIG_DIR, { recursive: true });
   }
-  return dir;
-}
+  return CONFIG_DIR;
+};
 
-export function getLogDir(): string {
+export const getLogDir = (): string => {
   const home = homedir();
   const dir =
     process.platform === "darwin"
@@ -29,26 +41,50 @@ export function getLogDir(): string {
     mkdirSync(dir, { recursive: true });
   }
   return dir;
-}
+};
 
-export function getConfigPath(): string {
-  return join(getAppDataDir(), "config.toml");
-}
+export const getConfigPath = (): string => CONFIG_FILE;
+export const getStatePath = (): string => STATE_FILE;
 
-export function getStatePath(): string {
-  return join(getAppDataDir(), "state.json");
-}
+export const SHARED_SOCKET_PATHS = ["/var/run/lazymacfan.sock", "/tmp/lazymacfan.sock"];
 
-export function getSocketPath(): string {
-  return join(getAppDataDir(), "lazymacfan.sock");
-}
+export const getSocketPath = (): string => {
+  if (
+    process.platform === "darwin" &&
+    typeof process.getuid === "function" &&
+    process.getuid() === 0
+  ) {
+    return "/var/run/lazymacfan.sock";
+  }
+  return USER_SOCKET_FILE;
+};
 
-export function getLogPath(): string {
-  return join(getLogDir(), "lazymacfan.log");
-}
+export const resolveActiveSocketPath = (): string => {
+  if (existsSync(USER_SOCKET_FILE)) return USER_SOCKET_FILE;
 
-export function loadConfig(): AppConfig {
-  const path = getConfigPath();
+  for (const shared of SHARED_SOCKET_PATHS) {
+    if (existsSync(shared)) return shared;
+  }
+
+  return USER_SOCKET_FILE;
+};
+
+export const getLogPath = (): string => join(getLogDir(), "lazymacfan.log");
+
+export const loadConfig = (): AppConfig => {
+  const path = CONFIG_FILE;
+  const legacyPath = join(homedir(), "Library", "Application Support", "lazymacfan", "config.toml");
+
+  if (!existsSync(path) && existsSync(legacyPath)) {
+    try {
+      getAppDataDir();
+      const rawLegacy = readFileSync(legacyPath, "utf-8");
+      writeFileSync(path, rawLegacy, "utf-8");
+    } catch {
+      // ignore
+    }
+  }
+
   if (!existsSync(path)) {
     saveConfig(DEFAULT_CONFIG);
     return DEFAULT_CONFIG;
@@ -67,13 +103,13 @@ export function loadConfig(): AppConfig {
   } catch {
     return DEFAULT_CONFIG;
   }
-}
+};
 
-export function saveConfig(config: AppConfig): void {
-  const path = getConfigPath();
+export const saveConfig = (config: AppConfig): void => {
+  getAppDataDir();
   const content = stringify(config as unknown as Record<string, unknown>);
-  writeFileSync(path, content, "utf-8");
-}
+  writeFileSync(CONFIG_FILE, content, "utf-8");
+};
 
 export interface RuntimeState {
   controller: string;
@@ -82,24 +118,23 @@ export interface RuntimeState {
   mode: string;
 }
 
-export function loadState(): RuntimeState | null {
-  const path = getStatePath();
-  if (!existsSync(path)) return null;
+export const loadState = (): RuntimeState | null => {
+  if (!existsSync(STATE_FILE)) return null;
   try {
-    const raw = readFileSync(path, "utf-8");
+    const raw = readFileSync(STATE_FILE, "utf-8");
     return JSON.parse(raw) as RuntimeState;
   } catch {
     return null;
   }
-}
+};
 
-export function saveState(status: ControllerStatus): void {
-  const path = getStatePath();
+export const saveState = (status: ControllerStatus): void => {
+  getAppDataDir();
   const state: RuntimeState = {
     controller: status.state,
     pid: status.pid,
     lastUpdate: status.lastUpdate,
     mode: status.mode,
   };
-  writeFileSync(path, JSON.stringify(state, null, 2), "utf-8");
-}
+  writeFileSync(STATE_FILE, JSON.stringify(state, null, 2), "utf-8");
+};

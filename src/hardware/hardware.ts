@@ -14,4 +14,5 @@ export interface FanController {
 
 export interface HardwareProvider extends TemperatureProvider, FanController {
   isAvailable(): Promise<boolean>;
+  checkPrivileges?(): Promise<{ privileged: boolean; euid?: number; uid?: number }>;
 }

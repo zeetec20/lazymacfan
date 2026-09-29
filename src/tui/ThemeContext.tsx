@@ -5,6 +5,4 @@ const ThemeContext = createContext<Theme>(resolveTheme("tokyonight"));
 
 export const ThemeProvider = ThemeContext.Provider;
 
-export function useTheme(): Theme {
-  return useContext(ThemeContext);
-}
+export const useTheme = (): Theme => useContext(ThemeContext);

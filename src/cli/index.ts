@@ -1,13 +1,15 @@
-import { existsSync, readFileSync } from "node:fs";
-import { IPCClient } from "../ipc/client";
+import { existsSync, readFileSync, statSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { createIPCClient } from "../ipc/client";
 import { runAgentDaemon } from "../daemon/agent";
 import { runTui } from "../tui/app";
 import { getLogPath } from "../config/persistence";
 import { getServiceStatus, startService, stopService } from "../service/launchd";
+import { createMacOSHardwareBackend } from "../hardware/macos-backend";
 
 const VERSION = "0.1.0";
 
-function printHelp(): void {
+const printHelp = (): void => {
   console.log(`lazymacfan v${VERSION} — macOS Fan Control & Temperature Monitor
 
 USAGE:
@@ -18,10 +20,15 @@ USAGE:
   lazymacfan sensors              List temperature sensors
   lazymacfan fan <id> --rpm <rpm> Set fan speed manually
   lazymacfan mode <auto|manual>   Switch between auto and manual fan modes
+  lazymacfan helper <command>     Manage helper permissions (setuid root for AppleSMC)
   lazymacfan service <command>    Manage background launchd service
   lazymacfan logs [--follow]      View background agent logs
   lazymacfan --version, -v        Print version information
   lazymacfan --help, -h           Show this help message
+
+HELPER COMMANDS:
+  status                          Check if helper binary has root privileges
+  setup                           Authorize helper binary with setuid root (requires sudo)
 
 SERVICE COMMANDS:
   start                           Install and start background launchd agent
@@ -29,9 +36,9 @@ SERVICE COMMANDS:
   restart                         Restart background launchd agent
   status                          Check launchd agent status
 `);
-}
+};
 
-async function main(): Promise<void> {
+const main = async (): Promise<void> => {
   const args = process.argv.slice(2);
   const command = args[0];
 
@@ -55,7 +62,7 @@ async function main(): Promise<void> {
     return;
   }
 
-  const client = new IPCClient();
+  const client = createIPCClient();
 
   if (command === "status") {
     try {
@@ -76,6 +83,11 @@ async function main(): Promise<void> {
       }
       console.log(`CPU:          ${cpuStr}`);
       console.log(`Uptime:       ${h}h ${m}m`);
+      const privStr =
+        status.privileged === false
+          ? "Read-Only (Run 'sudo lazymacfan helper setup' to enable control)"
+          : "Full Control (Read/Write)";
+      console.log(`Privileges:   ${privStr}`);
       if (status.error) {
         console.log(`Notice:       ${status.error}`);
       }
@@ -150,7 +162,15 @@ async function main(): Promise<void> {
       await client.setFanSpeed(fanId, rpm);
       console.log(`Set Fan ${fanId} target speed to ${rpm} RPM (Mode: Manual)`);
     } catch (err) {
-      console.error(err instanceof Error ? err.message : String(err));
+      const msg = err instanceof Error ? err.message : String(err);
+      if (/permission denied|privilege|EPERM/i.test(msg)) {
+        console.error(`\n❌ Fan Speed Control Error:\n${msg}`);
+        console.error(
+          "\n💡 To enable hardware fan control, authorize the helper binary with setuid root:\n  sudo lazymacfan helper setup\n",
+        );
+      } else {
+        console.error(msg);
+      }
       process.exit(1);
     }
     return;
@@ -171,6 +191,90 @@ async function main(): Promise<void> {
       process.exit(1);
     }
     return;
+  }
+
+  if (command === "helper") {
+    const sub = args[1] ?? "status";
+    const macBackend = createMacOSHardwareBackend();
+    const helperCandidates = [
+      process.env["LAZYMACFAN_HELPER_PATH"],
+      join(dirname(process.execPath), "lazymacfan-helper"),
+      join(process.cwd(), "dist", "lazymacfan-helper"),
+      join(dirname(new URL(import.meta.url).pathname), "..", "..", "dist", "lazymacfan-helper"),
+      "/opt/homebrew/bin/lazymacfan-helper",
+      "/usr/local/bin/lazymacfan-helper",
+    ].filter((p): p is string => Boolean(p && existsSync(p)));
+
+    const helperPath = helperCandidates[0];
+
+    if (!helperPath) {
+      console.error(
+        "lazymacfan-helper binary not found. Build it with 'bun run build' or check installation.",
+      );
+      process.exit(1);
+    }
+
+    if (sub === "status") {
+      const stat = statSync(helperPath);
+      const isSetuid = (stat.mode & 0o4000) !== 0;
+      const isRootOwner = stat.uid === 0;
+      const priv = await macBackend.checkPrivileges();
+
+      console.log("lazymacfan-helper status\n");
+      console.log(`Path:         ${helperPath}`);
+      console.log(`Owner UID:    ${stat.uid} (${isRootOwner ? "root" : "non-root"})`);
+      console.log(
+        `Permissions:  ${(stat.mode & 0o7777).toString(8)} (${isSetuid ? "setuid root enabled" : "setuid root disabled"})`,
+      );
+      console.log(
+        `Privileges:   ${priv.privileged ? "✅ Full Control (Writing to AppleSMC allowed)" : "🔒 Read-Only (Root required for fan speed control)"}`,
+      );
+      if (!priv.privileged) {
+        console.log(
+          "\n💡 To authorize fan control without sudo for normal users, run:\n  sudo lazymacfan helper setup\n",
+        );
+      }
+      return;
+    }
+
+    if (sub === "setup") {
+      if (typeof process.getuid === "function" && process.getuid() !== 0) {
+        console.error("❌ 'lazymacfan helper setup' requires administrative privileges (sudo).\n");
+        console.error("Please run:\n  sudo lazymacfan helper setup\n");
+        process.exit(1);
+      }
+
+      console.log(`Authorizing helper at: ${helperPath}`);
+      const chownProc = Bun.spawnSync(["chown", "root:wheel", helperPath]);
+      if (chownProc.exitCode !== 0) {
+        console.error(`Failed to chown helper: ${chownProc.stderr.toString()}`);
+        process.exit(1);
+      }
+
+      const chmodProc = Bun.spawnSync(["chmod", "4755", helperPath]);
+      if (chmodProc.exitCode !== 0) {
+        console.error(`Failed to chmod helper: ${chmodProc.stderr.toString()}`);
+        process.exit(1);
+      }
+
+      const priv = await macBackend.checkPrivileges();
+      if (priv.privileged) {
+        console.log("✅ Successfully authorized lazymacfan-helper with setuid root permissions!");
+        console.log(
+          "Standard users and background daemons can now adjust fan speeds without sudo.\n",
+        );
+      } else {
+        console.log(
+          "⚠️ Helper permissions updated, but privilege verification returned unprivileged.",
+        );
+      }
+      return;
+    }
+
+    console.error(
+      "Unknown helper command. Use 'lazymacfan helper status' or 'sudo lazymacfan helper setup'.",
+    );
+    process.exit(1);
   }
 
   if (command === "service") {
@@ -232,7 +336,6 @@ async function main(): Promise<void> {
       return;
     }
 
-    // Follow logs using tail -f
     const proc = Bun.spawn(["tail", "-f", "-n", "30", logFile], {
       stdout: "inherit",
       stderr: "inherit",
@@ -248,7 +351,7 @@ async function main(): Promise<void> {
   console.error(`Unknown command: ${command}`);
   printHelp();
   process.exit(1);
-}
+};
 
 void main().catch((err) => {
   console.error(err instanceof Error ? err.message : String(err));

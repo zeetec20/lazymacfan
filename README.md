@@ -214,7 +214,30 @@ bun run build
 ## 🔒 Safety & Permissions Notice
 
 - **Telemetry (Read-Only)**: Querying fan speeds and temperature sensors requires no special permissions and works out-of-the-box for any user.
-- **Fan Speed Control (Write)**: On macOS, writing to the System Management Controller (`AppleSMC`) registers requires administrative privileges (`root` / `sudo` or running as a launchd daemon). When run without root, lazymacfan displays full real-time telemetry and alerts the user gracefully.
+- **Fan Speed Control (Write)**: On macOS, writing to the System Management Controller (`AppleSMC`) registers fundamentally requires administrative privileges (`root` / `sudo`).
+- **One-Command Helper Authorization (Recommended)**: To allow foreground TUI sessions and background agents to adjust fan speeds without needing `sudo` or password prompts every time, authorize the native helper once:
+  ```bash
+  sudo lazymacfan helper setup
+  ```
+  This applies `chmod 4755` (setuid root) to `lazymacfan-helper`. You can check the current status anytime:
+  ```bash
+  lazymacfan helper status
+  ```
+
+---
+
+## ❓ Troubleshooting
+
+### "Failed to set fan speed" or "Permission denied (kIOReturnNotPrivileged)"
+- **Cause**: The kernel `AppleSMC` driver rejected write commands because the process lacks root privileges (`euid != 0`).
+- **Fix**: Authorize the native helper binary with:
+  ```bash
+  sudo lazymacfan helper setup
+  ```
+  Or start the background controller daemon with sudo:
+  ```bash
+  sudo lazymacfan agent
+  ```
 
 ---
 

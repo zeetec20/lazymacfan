@@ -1,6 +1,6 @@
 import { describe, expect, it, afterEach } from "vitest";
-import { FanControllerService } from "../../src/controller/controller";
-import { MockHardwareBackend } from "../../src/hardware/mock-backend";
+import { createFanController, type FanControllerService } from "../../src/controller/controller";
+import { createMockHardwareBackend } from "../../src/hardware/mock-backend";
 import type { AppConfig } from "../../src/config/config";
 
 describe("FanControllerService", () => {
@@ -14,7 +14,7 @@ describe("FanControllerService", () => {
   });
 
   it("evaluates cycle and sets fan speed based on curve in auto mode", async () => {
-    const mock = new MockHardwareBackend();
+    const mock = createMockHardwareBackend();
     mock.setMockTemperature("cpu.package", 60);
 
     const testConfig: AppConfig = {
@@ -38,7 +38,7 @@ describe("FanControllerService", () => {
       },
     };
 
-    controller = new FanControllerService(mock, testConfig);
+    controller = createFanController(mock, testConfig);
     await controller.evaluateCycle();
 
     const fans = await mock.getFans();
@@ -47,10 +47,10 @@ describe("FanControllerService", () => {
   });
 
   it("triggers emergency max RPM when sensor exceeds emergency threshold", async () => {
-    const mock = new MockHardwareBackend();
+    const mock = createMockHardwareBackend();
     mock.setMockTemperature("cpu.package", 98); // Exceeds 95°C
 
-    controller = new FanControllerService(mock);
+    controller = createFanController(mock);
     await controller.evaluateCycle();
 
     const fans = await mock.getFans();
@@ -59,8 +59,8 @@ describe("FanControllerService", () => {
   });
 
   it("restores automatic mode upon service stop", async () => {
-    const mock = new MockHardwareBackend();
-    controller = new FanControllerService(mock);
+    const mock = createMockHardwareBackend();
+    controller = createFanController(mock);
     await controller.start();
 
     await controller.setFanSpeed(0, 4000);

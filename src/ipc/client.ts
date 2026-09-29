@@ -1,34 +1,36 @@
 import { createConnection } from "node:net";
 import { existsSync } from "node:fs";
-import { getSocketPath } from "../config/persistence";
+import { resolveActiveSocketPath } from "../config/persistence";
 import type { IPCRequest } from "./protocol";
 import type { ControllerStatus } from "../types/controller";
 import type { Fan, FanMode } from "../types/fan";
 import type { TemperatureSensor } from "../types/temperature";
 
-export class IPCClient {
-  private socketPath: string;
+export interface IPCClientInstance {
+  readonly socketPath: string;
+  isAgentRunning: () => Promise<boolean>;
+  send: <T>(
+    request: IPCRequest,
+    timeoutMs?: number,
+  ) => Promise<{ success: true; data: T } | { success: false; error: string }>;
+  getStatus: () => Promise<ControllerStatus>;
+  getFans: () => Promise<Fan[]>;
+  getSensors: () => Promise<TemperatureSensor[]>;
+  setMode: (mode: FanMode) => Promise<void>;
+  setFanSpeed: (fanId: number, rpm: number) => Promise<void>;
+  reloadConfig: () => Promise<void>;
+}
 
-  constructor(socketPath?: string) {
-    this.socketPath = socketPath ?? getSocketPath();
-  }
+export const createIPCClient = (socketPath?: string): IPCClientInstance => {
+  const getSocket = (): string => socketPath ?? resolveActiveSocketPath();
 
-  public async isAgentRunning(): Promise<boolean> {
-    if (!existsSync(this.socketPath)) return false;
-    try {
-      const resp = await this.send({ type: "ping" }, 500);
-      return resp.success;
-    } catch {
-      return false;
-    }
-  }
-
-  public send<T>(
+  const send = <T>(
     request: IPCRequest,
     timeoutMs = 2000,
-  ): Promise<{ success: true; data: T } | { success: false; error: string }> {
-    return new Promise((resolve, reject) => {
-      if (!existsSync(this.socketPath)) {
+  ): Promise<{ success: true; data: T } | { success: false; error: string }> =>
+    new Promise((resolve, reject) => {
+      const sock = getSocket();
+      if (!existsSync(sock)) {
         reject(
           new Error(
             "Controller is not running.\nStart it with:\n  lazymacfan agent\nor via service:\n  lazymacfan service start",
@@ -37,7 +39,7 @@ export class IPCClient {
         return;
       }
 
-      const client = createConnection(this.socketPath);
+      const client = createConnection(sock);
       let buffer = "";
       let timer: ReturnType<typeof setTimeout>;
 
@@ -70,53 +72,80 @@ export class IPCClient {
         clearTimeout(timer);
         reject(
           new Error(
-            `Unable to connect to controller at ${this.socketPath}: ${err.message}\n` +
+            `Unable to connect to controller at ${sock}: ${err.message}\n` +
               "Start the agent with: lazymacfan agent",
           ),
         );
       });
     });
-  }
 
-  public async getStatus(): Promise<ControllerStatus> {
-    const res = await this.send<ControllerStatus>({ type: "get_status" });
+  const isAgentRunning = async (): Promise<boolean> => {
+    const sock = getSocket();
+    if (!existsSync(sock)) return false;
+    try {
+      const resp = await send({ type: "ping" }, 500);
+      return resp.success;
+    } catch {
+      return false;
+    }
+  };
+
+  const getStatus = async (): Promise<ControllerStatus> => {
+    const res = await send<ControllerStatus>({ type: "get_status" });
     if (!res.success) throw new Error(res.error);
     return res.data;
-  }
+  };
 
-  public async getFans(): Promise<Fan[]> {
-    const res = await this.send<Fan[]>({ type: "get_fans" });
+  const getFans = async (): Promise<Fan[]> => {
+    const res = await send<Fan[]>({ type: "get_fans" });
     if (!res.success) throw new Error(res.error);
     return res.data;
-  }
+  };
 
-  public async getSensors(): Promise<TemperatureSensor[]> {
-    const res = await this.send<TemperatureSensor[]>({ type: "get_sensors" });
+  const getSensors = async (): Promise<TemperatureSensor[]> => {
+    const res = await send<TemperatureSensor[]>({ type: "get_sensors" });
     if (!res.success) throw new Error(res.error);
     return res.data;
-  }
+  };
 
-  public async setMode(mode: FanMode): Promise<void> {
-    const res = await this.send<{ mode: FanMode }>({
+  const setMode = async (mode: FanMode): Promise<void> => {
+    const res = await send<{ mode: FanMode }>({
       type: "set_mode",
       mode,
     });
     if (!res.success) throw new Error(res.error);
-  }
+  };
 
-  public async setFanSpeed(fanId: number, rpm: number): Promise<void> {
-    const res = await this.send<{ fanId: number; rpm: number }>({
+  const setFanSpeed = async (fanId: number, rpm: number): Promise<void> => {
+    const res = await send<{ fanId: number; rpm: number }>({
       type: "set_fan_speed",
       fanId,
       rpm,
     });
     if (!res.success) throw new Error(res.error);
-  }
+  };
 
-  public async reloadConfig(): Promise<void> {
-    const res = await this.send<{ reloaded: boolean }>({
+  const reloadConfig = async (): Promise<void> => {
+    const res = await send<{ reloaded: boolean }>({
       type: "reload_config",
     });
     if (!res.success) throw new Error(res.error);
-  }
-}
+  };
+
+  return {
+    get socketPath() {
+      return getSocket();
+    },
+    isAgentRunning,
+    send,
+    getStatus,
+    getFans,
+    getSensors,
+    setMode,
+    setFanSpeed,
+    reloadConfig,
+  };
+};
+
+export type IPCClient = IPCClientInstance;
+export const IPCClient = createIPCClient;

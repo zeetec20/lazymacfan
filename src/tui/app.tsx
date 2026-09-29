@@ -1,7 +1,7 @@
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { createCliRenderer } from "@opentui/core";
-import { createRoot, useKeyboard, useRenderer } from "@opentui/react";
-import { IPCClient } from "../ipc/client";
+import { createRoot, useKeyboard, useRenderer, useSelectionHandler } from "@opentui/react";
+import { createIPCClient } from "../ipc/client";
 import { loadConfig } from "../config/persistence";
 import { getServiceStatus } from "../service/launchd";
 import type { ControllerStatus } from "../types/controller";
@@ -9,35 +9,51 @@ import { resolveTheme, THEME_NAMES, type ThemeName } from "./theme";
 import { ThemeProvider } from "./ThemeContext";
 import { TabBar, type TabItem } from "./components/TabBar";
 import { Footer } from "./components/Footer";
-import { Toast } from "./components/Toast";
+import { ToastStack, type ToastItem, type ToastKind } from "./components/Toast";
 import { DashboardScreen } from "./screens/DashboardScreen";
-import { FansScreen } from "./screens/FansScreen";
 import { TemperaturesScreen } from "./screens/TemperaturesScreen";
 import { CurveScreen } from "./screens/CurveScreen";
 import { SettingsScreen } from "./screens/SettingsScreen";
 import { HelpModal } from "./screens/HelpModal";
+import { installThinScrollbar } from "./scrollbar";
 
-function MainApp() {
+const MainApp = () => {
   const renderer = useRenderer();
-  const client = useMemo(() => new IPCClient(), []);
+  const client = useMemo(() => createIPCClient(), []);
   const config = useMemo(() => loadConfig(), []);
 
   const [themeName, setThemeName] = useState<ThemeName>("tokyonight");
   const [activeTab, setActiveTab] = useState(0);
   const [status, setStatus] = useState<ControllerStatus | null>(null);
   const [selectedFanIndex, setSelectedFanIndex] = useState(0);
-  const [selectedSensorIndex, setSelectedSensorIndex] = useState(0);
   const [serviceInstalled, setServiceInstalled] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [toasts, setToasts] = useState<ToastItem[]>([]);
+  const toastTimeoutsRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
   const theme = useMemo(() => resolveTheme(themeName), [themeName]);
 
-  const showToast = useCallback((msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => {
-      setToastMessage((cur) => (cur === msg ? null : cur));
-    }, 2500);
+  const dismissToast = useCallback((id?: string) => {
+    setToasts((prev) => {
+      if (prev.length === 0) return prev;
+      const targetId = id ?? prev[prev.length - 1]?.id;
+      if (!targetId) return prev;
+
+      const timer = toastTimeoutsRef.current.get(targetId);
+      if (timer) clearTimeout(timer);
+      toastTimeoutsRef.current.delete(targetId);
+      return prev.filter((t) => t.id !== targetId);
+    });
+  }, []);
+
+  const showToast = useCallback((msg: string, kind: ToastKind = "info", durationMs = 4500) => {
+    const id = Math.random().toString(36).slice(2) + Date.now().toString(36);
+    setToasts((prev) => [...prev.slice(-3), { id, message: msg, kind }]);
+    const timer = setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+      toastTimeoutsRef.current.delete(id);
+    }, durationMs);
+    toastTimeoutsRef.current.set(id, timer);
   }, []);
 
   const fetchStatus = useCallback(async () => {
@@ -65,16 +81,37 @@ function MainApp() {
   const adjustRpm = useCallback(
     async (delta: number) => {
       if (!status || status.fans.length === 0) return;
+      if (status.privileged === false) {
+        showToast(
+          "Read-Only mode: Run 'sudo lazymacfan helper setup' to enable fan control",
+          "warning",
+          5500,
+        );
+        return;
+      }
+      if (status.mode === "auto") {
+        showToast(
+          "Switch to Manual Mode first (press [m]) to manually adjust fan RPM",
+          "warning",
+          5500,
+        );
+        return;
+      }
       const fan = status.fans[selectedFanIndex] ?? status.fans[0];
       if (!fan) return;
 
       const newTarget = fan.targetRpm + delta;
       try {
         await client.setFanSpeed(fan.id, newTarget);
-        showToast(`${fan.name} target speed set to ${newTarget} RPM`);
+        showToast(`${fan.name} target speed set to ${newTarget} RPM`, "success");
         await fetchStatus();
       } catch (err) {
-        showToast(`Error: ${String(err)}`);
+        const msg = err instanceof Error ? err.message : String(err);
+        if (/permission denied|privilege|EPERM/i.test(msg)) {
+          showToast("Root required: Run 'sudo lazymacfan helper setup'", "error", 5500);
+        } else {
+          showToast(`Error: ${msg}`, "error", 5000);
+        }
       }
     },
     [client, fetchStatus, selectedFanIndex, showToast, status],
@@ -83,13 +120,26 @@ function MainApp() {
   // Mode toggle
   const toggleMode = useCallback(async () => {
     if (!status) return;
+    if (status.privileged === false) {
+      showToast(
+        "Read-Only mode: Run 'sudo lazymacfan helper setup' to enable fan control",
+        "warning",
+        5500,
+      );
+      return;
+    }
     const nextMode = status.mode === "manual" ? "auto" : "manual";
     try {
       await client.setMode(nextMode);
-      showToast(`Controller mode set to: ${nextMode.toUpperCase()}`);
+      showToast(`Controller mode set to: ${nextMode.toUpperCase()}`, "success");
       await fetchStatus();
     } catch (err) {
-      showToast(`Error: ${String(err)}`);
+      const msg = err instanceof Error ? err.message : String(err);
+      if (/permission denied|privilege|EPERM/i.test(msg)) {
+        showToast("Root required: Run 'sudo lazymacfan helper setup'", "error", 5500);
+      } else {
+        showToast(`Error: ${msg}`, "error", 5000);
+      }
     }
   }, [client, fetchStatus, showToast, status]);
 
@@ -99,14 +149,40 @@ function MainApp() {
       const currIdx = THEME_NAMES.indexOf(prev);
       const nextIdx = (currIdx + 1) % THEME_NAMES.length;
       const next = THEME_NAMES[nextIdx] ?? "tokyonight";
-      showToast(`Theme: ${next}`);
+      showToast(`Theme: ${next}`, "info");
       return next;
     });
   }, [showToast]);
 
+  // Global Text Selection & Clipboard Copy
+  useSelectionHandler((selection) => {
+    const text = selection.getSelectedText();
+    if (text && text.trim()) {
+      renderer.copyToClipboardOSC52(text);
+      if (process.platform === "darwin") {
+        try {
+          const proc = Bun.spawn(["pbcopy"], { stdin: "pipe" });
+          proc.stdin.write(text);
+          proc.stdin.end();
+        } catch {
+          // ignore
+        }
+      }
+      showToast("Copied selection to clipboard", "success", 2500);
+    }
+  });
+
   // Global Keyboard Navigation
   useKeyboard((key) => {
     const name = key.name.toLowerCase();
+
+    // Dismiss active toast
+    if (name === "x") {
+      if (toasts.length > 0) {
+        dismissToast();
+        return;
+      }
+    }
 
     // Escape / Help toggle
     if (name === "escape") {
@@ -130,29 +206,36 @@ function MainApp() {
       return;
     }
 
-    // Direct tab jumps
+    // Theme switch hotkey: uppercase T (Shift+t) or p
+    const isUpperT =
+      key.name === "T" ||
+      (key.name.toLowerCase() === "t" && Boolean(key.shift)) ||
+      key.sequence === "T";
+    const isLowerT = key.name.toLowerCase() === "t" && !key.shift && key.sequence !== "T";
+
+    if (isUpperT || name === "p") {
+      cycleTheme();
+      return;
+    }
+
+    // Direct tab jumps (t or 2 for Temps, strictly lowercase t)
     if (name === "1" || name === "d") {
       setActiveTab(0);
       setShowHelp(false);
       return;
     }
-    if (name === "2" || name === "f") {
+    if (name === "2" || isLowerT) {
       setActiveTab(1);
       setShowHelp(false);
       return;
     }
-    if (name === "3" || name === "t") {
+    if (name === "3" || name === "c") {
       setActiveTab(2);
       setShowHelp(false);
       return;
     }
-    if (name === "4" || name === "c") {
+    if (name === "4" || name === "s") {
       setActiveTab(3);
-      setShowHelp(false);
-      return;
-    }
-    if (name === "5" || name === "s") {
-      setActiveTab(4);
       setShowHelp(false);
       return;
     }
@@ -164,11 +247,11 @@ function MainApp() {
     }
 
     if (name === "left") {
-      void adjustRpm(-100);
+      void adjustRpm(-500);
       return;
     }
     if (name === "right") {
-      void adjustRpm(100);
+      void adjustRpm(500);
       return;
     }
 
@@ -179,32 +262,9 @@ function MainApp() {
       return;
     }
 
-    if (name === "up" || name === "k") {
-      if (activeTab === 2 && status) {
-        setSelectedSensorIndex((prev) => Math.max(0, prev - 1));
-      } else if (activeTab === 1 && status && status.fans.length > 0) {
-        setSelectedFanIndex((prev) => (prev - 1 + status.fans.length) % status.fans.length);
-      }
-      return;
-    }
-
-    if (name === "down" || name === "j") {
-      if (activeTab === 2 && status) {
-        setSelectedSensorIndex((prev) => Math.min(status.sensors.length - 1, prev + 1));
-      } else if (activeTab === 1 && status && status.fans.length > 0) {
-        setSelectedFanIndex((prev) => (prev + 1) % status.fans.length);
-      }
-      return;
-    }
-
-    if (key.name === "T" || (key.shift && name === "t")) {
-      cycleTheme();
-      return;
-    }
-
     if (name === "r") {
       void fetchStatus();
-      showToast("Telemetry refreshed");
+      showToast("Telemetry refreshed", "success");
       return;
     }
   });
@@ -212,12 +272,11 @@ function MainApp() {
   const tabs: TabItem[] = useMemo(
     () => [
       { key: "dash", num: "1", label: "Dashboard" },
-      { key: "fans", num: "2", label: "Fans", badge: status?.fans.length },
-      { key: "temps", num: "3", label: "Temps", badge: status?.sensors.length },
-      { key: "curve", num: "4", label: "Curve" },
-      { key: "settings", num: "5", label: "Settings" },
+      { key: "temps", num: "2", label: "Temps", badge: status?.sensors.length },
+      { key: "curve", num: "3", label: "Curve" },
+      { key: "settings", num: "4", label: "Settings" },
     ],
-    [status?.fans.length, status?.sensors.length],
+    [status?.sensors.length],
   );
 
   return (
@@ -232,20 +291,15 @@ function MainApp() {
         }}
       >
         {/* Navigation Tab Bar */}
-        <TabBar tabs={tabs} activeTab={activeTab} onSelectTab={setActiveTab} />
+        <TabBar tabs={tabs} activeTab={activeTab} onSelectTab={setActiveTab} status={status} />
 
         {/* Active Screen Viewport */}
         {activeTab === 0 ? (
           <DashboardScreen status={status} selectedFanIndex={selectedFanIndex} />
         ) : null}
-        {activeTab === 1 ? (
-          <FansScreen status={status} selectedFanIndex={selectedFanIndex} />
-        ) : null}
-        {activeTab === 2 ? (
-          <TemperaturesScreen status={status} selectedIndex={selectedSensorIndex} />
-        ) : null}
-        {activeTab === 3 ? <CurveScreen status={status} /> : null}
-        {activeTab === 4 ? (
+        {activeTab === 1 ? <TemperaturesScreen status={status} /> : null}
+        {activeTab === 2 ? <CurveScreen status={status} /> : null}
+        {activeTab === 3 ? (
           <SettingsScreen
             status={status}
             config={config}
@@ -262,17 +316,17 @@ function MainApp() {
         <Footer />
 
         {/* Action Toast Notifications */}
-        <Toast message={toastMessage} />
+        <ToastStack toasts={toasts} onDismiss={dismissToast} />
 
         {/* Help Modal Overlay */}
         {showHelp ? <HelpModal onClose={() => setShowHelp(false)} /> : null}
       </box>
     </ThemeProvider>
   );
-}
+};
 
-export async function runTui(): Promise<void> {
-  const client = new IPCClient();
+export const runTui = async (): Promise<void> => {
+  const client = createIPCClient();
   const isRunning = await client.isAgentRunning();
 
   if (!isRunning) {
@@ -287,6 +341,7 @@ export async function runTui(): Promise<void> {
     process.exit(1);
   }
 
-  const renderer = await createCliRenderer({ exitOnCtrlC: true });
+  installThinScrollbar();
+  const renderer = await createCliRenderer({ exitOnCtrlC: true, useMouse: true });
   createRoot(renderer).render(<MainApp />);
-}
+};

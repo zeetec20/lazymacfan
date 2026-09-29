@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
 import { TextAttributes } from "@opentui/core";
 import { useTheme } from "../ThemeContext";
+import type { ControllerStatus } from "../../types/controller";
 
 export interface TabItem {
   key: string;
@@ -9,27 +9,18 @@ export interface TabItem {
   badge?: string | number;
 }
 
-export function TabBar({
+export const TabBar = ({
   tabs,
   activeTab,
   onSelectTab,
+  status,
 }: {
   tabs: TabItem[];
   activeTab: number;
   onSelectTab: (idx: number) => void;
-}) {
+  status: ControllerStatus | null;
+}) => {
   const theme = useTheme();
-  const [timeStr, setTimeStr] = useState("");
-
-  useEffect(() => {
-    const updateTime = () => {
-      const now = new Date();
-      setTimeStr(now.toTimeString().split(" ")[0] ?? "");
-    };
-    updateTime();
-    const id = setInterval(updateTime, 1000);
-    return () => clearInterval(id);
-  }, []);
 
   return (
     <box
@@ -51,36 +42,61 @@ export function TabBar({
           return (
             <box
               key={tab.key}
-              onMouseDown={() => onSelectTab(idx)}
+              onMouseUp={() => onSelectTab(idx)}
               style={{
                 flexDirection: "row",
-                backgroundColor: isActive ? theme.selectedBg : undefined,
-                paddingLeft: 1,
-                paddingRight: 1,
               }}
             >
-              <text
-                fg={isActive ? theme.accent : theme.muted}
-                attributes={isActive ? TextAttributes.BOLD : undefined}
-              >
-                {isActive ? "▌ " : "  "}
-                <span fg={theme.muted}>[{tab.num}] </span>
-                {tab.label}
-                {tab.badge !== undefined ? (
-                  <span fg={isActive ? theme.fg : theme.muted}> ({tab.badge})</span>
-                ) : null}
-              </text>
+              {isActive ? (
+                <text>
+                  <span fg={theme.selectedBg}></span>
+                  <span fg={theme.accent} bg={theme.selectedBg} attributes={TextAttributes.BOLD}>
+                    <span>[{tab.num}] </span>
+                    <span>{tab.label}</span>
+                    {tab.badge !== undefined ? <span> ({tab.badge})</span> : null}
+                  </span>
+                  <span fg={theme.selectedBg}></span>
+                </text>
+              ) : (
+                <text fg={theme.muted}>
+                  <span> [{tab.num}] </span>
+                  <span>{tab.label}</span>
+                  {tab.badge !== undefined ? <span> ({tab.badge})</span> : null}
+                  <span> </span>
+                </text>
+              )}
             </box>
           );
         })}
       </box>
 
+      {/* Fan / Controller Live Status in place of clock */}
       <box style={{ flexDirection: "row", alignItems: "center" }}>
-        <text fg={theme.muted}>
-          <span>🕒 </span>
-          <span fg={theme.fg}>{timeStr}</span>
-        </text>
+        {!status ? (
+          <text fg={theme.muted}>Connecting...</text>
+        ) : status.privileged === false ? (
+          <text>
+            <span fg={theme.tempWarm} attributes={TextAttributes.BOLD}>
+              🔒 READ-ONLY
+            </span>
+            <span fg={theme.muted}> (No Permission)</span>
+          </text>
+        ) : status.mode === "manual" ? (
+          <text>
+            <span fg={theme.fanManual} attributes={TextAttributes.BOLD}>
+              ● MANUAL
+            </span>
+            <span fg={theme.muted}> ({Math.round(status.fans[0]?.currentRpm ?? 0)} RPM)</span>
+          </text>
+        ) : (
+          <text>
+            <span fg={theme.fanAuto} attributes={TextAttributes.BOLD}>
+              ○ AUTO
+            </span>
+            <span fg={theme.muted}> (Thermal Curve)</span>
+          </text>
+        )}
       </box>
     </box>
   );
-}
+};

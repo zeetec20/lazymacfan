@@ -1,13 +1,13 @@
 import { TextAttributes } from "@opentui/core";
 import { useTheme } from "../ThemeContext";
 
-export function Footer() {
+export const Footer = () => {
   const theme = useTheme();
 
   const hints = [
-    { key: "1-5", label: "tabs" },
+    { key: "1-4", label: "tabs" },
     { key: "m", label: "auto/manual" },
-    { key: "←/→", label: "rpm ±100" },
+    { key: "←/→", label: "rpm ±500" },
     { key: "T", label: "theme" },
     { key: "r", label: "refresh" },
     { key: "?", label: "help" },
@@ -47,4 +47,4 @@ export function Footer() {
       </box>
     </box>
   );
-}
+};

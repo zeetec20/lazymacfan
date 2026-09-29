@@ -26,6 +26,14 @@ class Lazymacfan < Formula
     error_log_path var/"log/lazymacfan/agent.stderr.log"
   end
 
+  def caveats
+    <<~EOS
+      Writing fan speeds via AppleSMC on macOS requires root privileges.
+      To allow standard users and background agents to adjust fan speeds without sudo:
+        sudo lazymacfan helper setup
+    EOS
+  end
+
   test do
     assert_match "lazymacfan v#{version}", shell_output("#{bin}/lazymacfan --version")
   end

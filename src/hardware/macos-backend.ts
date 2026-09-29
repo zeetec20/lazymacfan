@@ -4,14 +4,13 @@ import type { HardwareProvider } from "./hardware";
 import type { Fan } from "../types/fan";
 import type { TemperatureSensor } from "../types/temperature";
 
-export class MacOSHardwareBackend implements HardwareProvider {
-  private helperPath: string | null = null;
+export interface MacOSHardwareBackendInstance extends HardwareProvider {
+  checkPrivileges: () => Promise<{ privileged: boolean; euid?: number; uid?: number }>;
+  getAll: () => Promise<{ fans: Fan[]; sensors: TemperatureSensor[] }>;
+}
 
-  constructor() {
-    this.helperPath = this.resolveHelperPath();
-  }
-
-  private resolveHelperPath(): string | null {
+export const createMacOSHardwareBackend = (): MacOSHardwareBackendInstance => {
+  const resolveHelperPath = (): string | null => {
     if (
       process.env["LAZYMACFAN_HELPER_PATH"] &&
       existsSync(process.env["LAZYMACFAN_HELPER_PATH"])
@@ -34,16 +33,16 @@ export class MacOSHardwareBackend implements HardwareProvider {
       if (existsSync(c)) return c;
     }
     return null;
-  }
+  };
 
-  public async isAvailable(): Promise<boolean> {
+  const isAvailable = async (): Promise<boolean> => {
     if (process.platform !== "darwin") return false;
-    const path = this.resolveHelperPath();
+    const path = resolveHelperPath();
     return path !== null && existsSync(path);
-  }
+  };
 
-  private async runHelper(args: string[]): Promise<string> {
-    const helper = this.resolveHelperPath();
+  const runHelper = async (args: string[]): Promise<string> => {
+    const helper = resolveHelperPath();
     if (!helper) {
       throw new Error(
         "lazymacfan-helper binary not found. Build it with 'bun run build' or check installation.",
@@ -66,24 +65,24 @@ export class MacOSHardwareBackend implements HardwareProvider {
     }
 
     return stdout.trim();
-  }
+  };
 
-  public async getFans(): Promise<Fan[]> {
-    const raw = await this.runHelper(["--fans"]);
+  const getFans = async (): Promise<Fan[]> => {
+    const raw = await runHelper(["--fans"]);
     const parsed = JSON.parse(raw) as { fans?: Fan[]; error?: string };
     if (parsed.error) throw new Error(parsed.error);
     return parsed.fans ?? [];
-  }
+  };
 
-  public async getSensors(): Promise<TemperatureSensor[]> {
-    const raw = await this.runHelper(["--sensors"]);
+  const getSensors = async (): Promise<TemperatureSensor[]> => {
+    const raw = await runHelper(["--sensors"]);
     const parsed = JSON.parse(raw) as { sensors?: TemperatureSensor[]; error?: string };
     if (parsed.error) throw new Error(parsed.error);
     return parsed.sensors ?? [];
-  }
+  };
 
-  public async getAll(): Promise<{ fans: Fan[]; sensors: TemperatureSensor[] }> {
-    const raw = await this.runHelper(["--json"]);
+  const getAll = async (): Promise<{ fans: Fan[]; sensors: TemperatureSensor[] }> => {
+    const raw = await runHelper(["--json"]);
     const parsed = JSON.parse(raw) as {
       fans?: Fan[];
       sensors?: TemperatureSensor[];
@@ -94,32 +93,72 @@ export class MacOSHardwareBackend implements HardwareProvider {
       fans: parsed.fans ?? [],
       sensors: parsed.sensors ?? [],
     };
-  }
+  };
 
-  public async setSpeed(fanId: number, rpm: number): Promise<void> {
-    const raw = await this.runHelper(["--set-fan", fanId.toString(), rpm.toString()]);
-    const parsed = JSON.parse(raw) as { success: boolean; error?: string };
-    if (!parsed.success) {
-      throw new Error(
-        parsed.error ??
-          "Unable to set fan speed. Elevated privileges (sudo) may be required on macOS.",
-      );
+  const checkPrivileges = async (): Promise<{
+    privileged: boolean;
+    euid?: number;
+    uid?: number;
+  }> => {
+    if (process.platform !== "darwin") return { privileged: false };
+    try {
+      const raw = await runHelper(["--check-privileges"]);
+      return JSON.parse(raw) as { privileged: boolean; euid?: number; uid?: number };
+    } catch {
+      return { privileged: false };
     }
-  }
+  };
 
-  public async restoreAutomatic(fanId: number): Promise<void> {
-    const raw = await this.runHelper(["--auto", fanId.toString()]);
-    const parsed = JSON.parse(raw) as { success: boolean; error?: string };
+  const setSpeed = async (fanId: number, rpm: number): Promise<void> => {
+    const raw = await runHelper(["--set-fan", fanId.toString(), rpm.toString()]);
+    const parsed = JSON.parse(raw) as { success: boolean; error?: string; code?: string };
     if (!parsed.success) {
-      throw new Error(parsed.error ?? "Failed to restore fan to auto mode");
+      if (parsed.code === "EPERM" || /permission denied|privilege/i.test(parsed.error ?? "")) {
+        throw new Error(
+          "Permission denied: AppleSMC write requires root privileges. Run 'sudo lazymacfan helper setup' to authorize the helper tool.",
+        );
+      }
+      throw new Error(parsed.error ?? "Failed to set fan speed.");
     }
-  }
+  };
 
-  public async restoreAllAutomatic(): Promise<void> {
-    const raw = await this.runHelper(["--auto-all"]);
-    const parsed = JSON.parse(raw) as { success: boolean; error?: string };
+  const restoreAutomatic = async (fanId: number): Promise<void> => {
+    const raw = await runHelper(["--auto", fanId.toString()]);
+    const parsed = JSON.parse(raw) as { success: boolean; error?: string; code?: string };
     if (!parsed.success) {
-      throw new Error(parsed.error ?? "Failed to restore fans to auto mode");
+      if (parsed.code === "EPERM" || /permission denied|privilege/i.test(parsed.error ?? "")) {
+        throw new Error(
+          "Permission denied: AppleSMC write requires root privileges. Run 'sudo lazymacfan helper setup' to authorize the helper tool.",
+        );
+      }
+      throw new Error(parsed.error ?? "Failed to restore fan to auto mode.");
     }
-  }
-}
+  };
+
+  const restoreAllAutomatic = async (): Promise<void> => {
+    const raw = await runHelper(["--auto-all"]);
+    const parsed = JSON.parse(raw) as { success: boolean; error?: string; code?: string };
+    if (!parsed.success) {
+      if (parsed.code === "EPERM" || /permission denied|privilege/i.test(parsed.error ?? "")) {
+        throw new Error(
+          "Permission denied: AppleSMC write requires root privileges. Run 'sudo lazymacfan helper setup' to authorize the helper tool.",
+        );
+      }
+      throw new Error(parsed.error ?? "Failed to restore fans to auto mode.");
+    }
+  };
+
+  return {
+    isAvailable,
+    getFans,
+    getSensors,
+    getAll,
+    checkPrivileges,
+    setSpeed,
+    restoreAutomatic,
+    restoreAllAutomatic,
+  };
+};
+
+export type MacOSHardwareBackend = MacOSHardwareBackendInstance;
+export const MacOSHardwareBackend = createMacOSHardwareBackend;

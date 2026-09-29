@@ -28,7 +28,7 @@ export const THEME_NAMES = [
 
 export type ThemeName = (typeof THEME_NAMES)[number];
 
-function pal(
+const pal = (
   bg: string,
   fg: string,
   border: string,
@@ -42,23 +42,21 @@ function pal(
   tempCritical: string,
   fanAuto: string,
   fanManual: string,
-): Omit<Theme, "name"> {
-  return {
-    bg,
-    fg,
-    border,
-    accent,
-    muted,
-    selectedBg,
-    selectedFg,
-    tempCool,
-    tempWarm,
-    tempHot,
-    tempCritical,
-    fanAuto,
-    fanManual,
-  };
-}
+): Omit<Theme, "name"> => ({
+  bg,
+  fg,
+  border,
+  accent,
+  muted,
+  selectedBg,
+  selectedFg,
+  tempCool,
+  tempWarm,
+  tempHot,
+  tempCritical,
+  fanAuto,
+  fanManual,
+});
 
 const PALETTES: Record<ThemeName, { dark: Omit<Theme, "name">; light: Omit<Theme, "name"> }> = {
   tokyonight: {
@@ -319,7 +317,7 @@ const PALETTES: Record<ThemeName, { dark: Omit<Theme, "name">; light: Omit<Theme
   },
 };
 
-export function detectSystemMode(): "light" | "dark" {
+export const detectSystemMode = (): "light" | "dark" => {
   if (process.platform !== "darwin") return "dark";
   try {
     const out = Bun.spawnSync(["defaults", "read", "-g", "AppleInterfaceStyle"]);
@@ -327,12 +325,12 @@ export function detectSystemMode(): "light" | "dark" {
   } catch {
     return "dark";
   }
-}
+};
 
-export function resolveTheme(name?: string, mode?: "auto" | "light" | "dark"): Theme {
+export const resolveTheme = (name?: string, mode?: "auto" | "light" | "dark"): Theme => {
   const key = (THEME_NAMES.includes(name as ThemeName) ? name : "tokyonight") as ThemeName;
   const sysMode = detectSystemMode();
   const variant = (mode ?? "auto") === "auto" ? sysMode : (mode as "light" | "dark");
   const palette = PALETTES[key]?.[variant] ?? PALETTES.tokyonight.dark;
   return { name: key, ...palette };
-}
+};

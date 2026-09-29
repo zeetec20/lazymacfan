@@ -168,7 +168,15 @@ static int readSMCFloat(io_connect_t conn, const char *key, float *valOut) {
     return -1;
 }
 
+static char g_last_error[512] = {0};
+
 static int writeSMCKey(io_connect_t conn, const char *keyStr, UInt32 dataType, UInt32 dataSize, const void *bytes) {
+    if (geteuid() != 0) {
+        snprintf(g_last_error, sizeof(g_last_error),
+                 "Permission denied (geteuid != 0): AppleSMC write requires root privileges.");
+        return -1;
+    }
+
     SMCKeyData_t in, out;
     memset(&in, 0, sizeof(in));
     memset(&out, 0, sizeof(out));
@@ -181,7 +189,21 @@ static int writeSMCKey(io_connect_t conn, const char *keyStr, UInt32 dataType, U
 
     size_t s = sizeof(SMCKeyData_t);
     kern_return_t kr = IOConnectCallStructMethod(conn, KERNEL_INDEX_SMC, &in, s, &out, &s);
-    if (kr != KERN_SUCCESS || out.result != 0) return -1;
+    if (kr != KERN_SUCCESS) {
+        if (kr == 0xe00002c1) {
+            snprintf(g_last_error, sizeof(g_last_error),
+                     "Permission denied (kIOReturnNotPrivileged / 0xe00002c1): AppleSMC rejected write to key %s", keyStr);
+        } else {
+            snprintf(g_last_error, sizeof(g_last_error),
+                     "IOKit call failed with error 0x%08x on key %s", kr, keyStr);
+        }
+        return -1;
+    }
+    if (out.result != 0) {
+        snprintf(g_last_error, sizeof(g_last_error),
+                 "SMC error 0x%02x while writing key %s", (unsigned char)out.result, keyStr);
+        return -1;
+    }
     return 0;
 }
 
@@ -196,6 +218,7 @@ static void unlockAppleSiliconTestMode(io_connect_t conn, bool enable) {
 }
 
 static int setFanSpeed(io_connect_t conn, int fanId, float rpm) {
+    g_last_error[0] = '\0';
     char keyAc[5], keyMn[5], keyMx[5], keyTg[5], keyMd[5];
     snprintf(keyAc, 5, "F%dAc", fanId);
     snprintf(keyMn, 5, "F%dMn", fanId);
@@ -219,7 +242,9 @@ static int setFanSpeed(io_connect_t conn, int fanId, float rpm) {
     SMCKeyData_t mdInfo;
     if (readSMCRaw(conn, keyMd, &mdInfo, mdType) == 0) {
         unsigned char modeVal = 1;
-        writeSMCKey(conn, keyMd, mdInfo.keyInfo.dataType, 1, &modeVal);
+        if (writeSMCKey(conn, keyMd, mdInfo.keyInfo.dataType, 1, &modeVal) != 0) {
+            return -1;
+        }
     }
 
     /* Also try FS! bitmask for Intel / universal compatibility */
@@ -243,6 +268,10 @@ static int setFanSpeed(io_connect_t conn, int fanId, float rpm) {
             int fixed = (int)(rpm * 4.0f);
             unsigned char buf[2] = { (unsigned char)(fixed >> 8), (unsigned char)(fixed & 0xff) };
             return writeSMCKey(conn, keyTg, tgInfo.keyInfo.dataType, 2, buf);
+        } else if (strcmp(tgType, DATATYPE_UI16) == 0) {
+            UInt16 uRpm = (UInt16)rpm;
+            unsigned char buf[2] = { (unsigned char)(uRpm >> 8), (unsigned char)(uRpm & 0xff) };
+            return writeSMCKey(conn, keyTg, tgInfo.keyInfo.dataType, 2, buf);
         }
     }
 
@@ -252,6 +281,7 @@ static int setFanSpeed(io_connect_t conn, int fanId, float rpm) {
 }
 
 static int restoreAutoFan(io_connect_t conn, int fanId) {
+    g_last_error[0] = '\0';
     char keyMd[5];
     snprintf(keyMd, 5, "F%dMd", fanId);
 
@@ -260,7 +290,9 @@ static int restoreAutoFan(io_connect_t conn, int fanId) {
     SMCKeyData_t mdInfo;
     if (readSMCRaw(conn, keyMd, &mdInfo, mdType) == 0) {
         unsigned char modeVal = 0;
-        writeSMCKey(conn, keyMd, mdInfo.keyInfo.dataType, 1, &modeVal);
+        if (writeSMCKey(conn, keyMd, mdInfo.keyInfo.dataType, 1, &modeVal) != 0) {
+            return -1;
+        }
     }
 
     /* 2. Clear bit in FS! */
@@ -405,8 +437,15 @@ static void printSensorsJSON(io_connect_t smcConn) {
 
 int main(int argc, char *argv[]) {
     if (argc < 2) {
-        fprintf(stderr, "Usage: lazymacfan-helper [--json | --fans | --sensors | --set-fan <id> <rpm> | --auto <id> | --auto-all]\n");
+        fprintf(stderr, "Usage: lazymacfan-helper [--json | --fans | --sensors | --check-privileges | --set-fan <id> <rpm> | --auto <id> | --auto-all]\n");
         return 1;
+    }
+
+    if (strcmp(argv[1], "--check-privileges") == 0) {
+        bool canWrite = (geteuid() == 0);
+        printf("{\"privileged\":%s,\"euid\":%d,\"uid\":%d}\n",
+               canWrite ? "true" : "false", geteuid(), getuid());
+        return 0;
     }
 
     io_connect_t conn = openSMC();
@@ -441,7 +480,10 @@ int main(int argc, char *argv[]) {
         if (res == 0) {
             printf("{\"success\":true,\"fanId\":%d,\"targetRpm\":%.1f}\n", fanId, rpm);
         } else {
-            printf("{\"success\":false,\"error\":\"Failed to set fan speed\"}\n");
+            const char *errMsg = g_last_error[0] ? g_last_error : "Failed to set fan speed";
+            bool isPerm = (geteuid() != 0) || (strstr(errMsg, "Permission denied") != NULL);
+            printf("{\"success\":false,\"error\":\"%s\",\"code\":\"%s\"}\n",
+                   errMsg, isPerm ? "EPERM" : "EIO");
         }
     } else if (strcmp(argv[1], "--auto") == 0) {
         if (argc < 3) {
@@ -450,16 +492,33 @@ int main(int argc, char *argv[]) {
             return 1;
         }
         int fanId = atoi(argv[2]);
-        restoreAutoFan(conn, fanId);
-        printf("{\"success\":true,\"fanId\":%d,\"mode\":\"auto\"}\n", fanId);
+        int res = restoreAutoFan(conn, fanId);
+        if (res == 0) {
+            printf("{\"success\":true,\"fanId\":%d,\"mode\":\"auto\"}\n", fanId);
+        } else {
+            const char *errMsg = g_last_error[0] ? g_last_error : "Failed to restore fan to auto mode";
+            bool isPerm = (geteuid() != 0) || (strstr(errMsg, "Permission denied") != NULL);
+            printf("{\"success\":false,\"error\":\"%s\",\"code\":\"%s\"}\n",
+                   errMsg, isPerm ? "EPERM" : "EIO");
+        }
     } else if (strcmp(argv[1], "--auto-all") == 0) {
         float fanCount = 0;
+        int failed = 0;
         if (readSMCFloat(conn, "FNum", &fanCount) == 0 && fanCount > 0) {
             for (int i = 0; i < (int)fanCount; i++) {
-                restoreAutoFan(conn, i);
+                if (restoreAutoFan(conn, i) != 0) {
+                    failed = 1;
+                }
             }
         }
-        printf("{\"success\":true,\"mode\":\"auto\"}\n");
+        if (failed == 0) {
+            printf("{\"success\":true,\"mode\":\"auto\"}\n");
+        } else {
+            const char *errMsg = g_last_error[0] ? g_last_error : "Failed to restore all fans to auto mode";
+            bool isPerm = (geteuid() != 0) || (strstr(errMsg, "Permission denied") != NULL);
+            printf("{\"success\":false,\"error\":\"%s\",\"code\":\"%s\"}\n",
+                   errMsg, isPerm ? "EPERM" : "EIO");
+        }
     } else {
         fprintf(stderr, "Unknown argument: %s\n", argv[1]);
         closeSMC(conn);

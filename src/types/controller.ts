@@ -14,4 +14,5 @@ export interface ControllerStatus {
   sensors: TemperatureSensor[];
   lastUpdate: string;
   error?: string;
+  privileged?: boolean;
 }

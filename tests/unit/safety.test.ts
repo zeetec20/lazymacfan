@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { SafetyGuardian } from "../../src/controller/safety";
+import { createSafetyGuardian } from "../../src/controller/safety";
 import type { Fan } from "../../src/types/fan";
 import type { TemperatureSensor } from "../../src/types/temperature";
 
@@ -15,7 +15,7 @@ describe("SafetyGuardian", () => {
   };
 
   it("clamps RPM within min and max boundaries", () => {
-    const guardian = new SafetyGuardian(95);
+    const guardian = createSafetyGuardian(95);
 
     expect(guardian.clampRpm(500, fan)).toBe(1200);
     expect(guardian.clampRpm(3000, fan)).toBe(3000);
@@ -24,7 +24,7 @@ describe("SafetyGuardian", () => {
   });
 
   it("detects when emergency temperature is breached", () => {
-    const guardian = new SafetyGuardian(95);
+    const guardian = createSafetyGuardian(95);
     const normalSensors: TemperatureSensor[] = [
       { id: "cpu", name: "CPU", temperature: 65, unit: "C", source: "mock", available: true },
       { id: "gpu", name: "GPU", temperature: 50, unit: "C", source: "mock", available: true },
@@ -41,7 +41,7 @@ describe("SafetyGuardian", () => {
   });
 
   it("forces maximum RPM during emergency temperature override", () => {
-    const guardian = new SafetyGuardian(95);
+    const guardian = createSafetyGuardian(95);
     const hotSensors: TemperatureSensor[] = [
       {
         id: "cpu",
@@ -59,7 +59,7 @@ describe("SafetyGuardian", () => {
   });
 
   it("ignores unavailable or offline sensors for emergency check", () => {
-    const guardian = new SafetyGuardian(95);
+    const guardian = createSafetyGuardian(95);
     const unavailableSensors: TemperatureSensor[] = [
       { id: "cpu", name: "CPU", temperature: 105, unit: "C", source: "mock", available: false },
     ];

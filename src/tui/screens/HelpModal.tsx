@@ -5,7 +5,7 @@ export interface HelpModalProps {
   onClose?: () => void;
 }
 
-export function HelpModal({ onClose: _onClose }: HelpModalProps) {
+export const HelpModal = ({ onClose: _onClose }: HelpModalProps) => {
   const theme = useTheme();
 
   return (
@@ -27,11 +27,13 @@ export function HelpModal({ onClose: _onClose }: HelpModalProps) {
         gap: 1,
         zIndex: 50,
       }}
-      title=" ❓ Help & Keybindings "
     >
-      <text fg={theme.accent} attributes={TextAttributes.BOLD}>
-        lazymacfan — Interactive Terminal Hotkeys
-      </text>
+      <box style={{ flexDirection: "row", alignItems: "center", marginBottom: 0 }}>
+        <text attributes={TextAttributes.BOLD}>
+          <span fg={theme.accent}>❓ </span>
+          <span fg={theme.fg}>Help & Interactive Hotkeys</span>
+        </text>
+      </box>
 
       <box
         style={{
@@ -55,15 +57,7 @@ export function HelpModal({ onClose: _onClose }: HelpModalProps) {
         </box>
         <box style={{ flexDirection: "row", justifyContent: "space-between" }}>
           <text fg={theme.accent} attributes={TextAttributes.BOLD}>
-            [2] or [f]
-          </text>
-          <text fg={theme.fg}>
-            Fans Screen: Detailed RPM telemetry, slider meters, manual controls
-          </text>
-        </box>
-        <box style={{ flexDirection: "row", justifyContent: "space-between" }}>
-          <text fg={theme.accent} attributes={TextAttributes.BOLD}>
-            [3] or [t]
+            [2] or [t]
           </text>
           <text fg={theme.fg}>
             Temperatures: 2-column catalog of all discovered hardware sensors
@@ -71,13 +65,13 @@ export function HelpModal({ onClose: _onClose }: HelpModalProps) {
         </box>
         <box style={{ flexDirection: "row", justifyContent: "space-between" }}>
           <text fg={theme.accent} attributes={TextAttributes.BOLD}>
-            [4] or [c]
+            [3] or [c]
           </text>
           <text fg={theme.fg}>Fan Curve: Visual ASCII temperature curve and threshold table</text>
         </box>
         <box style={{ flexDirection: "row", justifyContent: "space-between" }}>
           <text fg={theme.accent} attributes={TextAttributes.BOLD}>
-            [5] or [s]
+            [4] or [s]
           </text>
           <text fg={theme.fg}>Settings: Interactive Theme Picker and daemon parameters</text>
         </box>
@@ -91,21 +85,33 @@ export function HelpModal({ onClose: _onClose }: HelpModalProps) {
           <text fg={theme.accent} attributes={TextAttributes.BOLD}>
             [← / →]
           </text>
-          <text fg={theme.fg}>Adjust target fan speed (±100 RPM step)</text>
+          <text fg={theme.fg}>Adjust target fan speed (±500 RPM step)</text>
         </box>
         <box style={{ flexDirection: "row", justifyContent: "space-between" }}>
           <text fg={theme.accent} attributes={TextAttributes.BOLD}>
-            [Tab / ↑ / ↓]
+            [Tab]
           </text>
-          <text fg={theme.fg}>Switch selected fan or navigate sensor lists</text>
+          <text fg={theme.fg}>Switch selected fan on Dashboard</text>
         </box>
         <box style={{ flexDirection: "row", justifyContent: "space-between" }}>
           <text fg={theme.accent} attributes={TextAttributes.BOLD}>
-            [T] (Shift+T)
+            [↑ / ↓ / k / j]
+          </text>
+          <text fg={theme.fg}>Scroll sensor catalog and fan curve diagrams</text>
+        </box>
+        <box style={{ flexDirection: "row", justifyContent: "space-between" }}>
+          <text fg={theme.accent} attributes={TextAttributes.BOLD}>
+            [T] (Shift+t)
           </text>
           <text fg={theme.fg}>
             Cycle color themes (TokyoNight, Catppuccin, Nord, Obsidian, etc.)
           </text>
+        </box>
+        <box style={{ flexDirection: "row", justifyContent: "space-between" }}>
+          <text fg={theme.accent} attributes={TextAttributes.BOLD}>
+            [x]
+          </text>
+          <text fg={theme.fg}>Close active toast notification one by one</text>
         </box>
         <box style={{ flexDirection: "row", justifyContent: "space-between" }}>
           <text fg={theme.accent} attributes={TextAttributes.BOLD}>
@@ -136,4 +142,4 @@ export function HelpModal({ onClose: _onClose }: HelpModalProps) {
       </box>
     </box>
   );
-}
+};

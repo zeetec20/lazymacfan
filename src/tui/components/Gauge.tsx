@@ -1,6 +1,6 @@
 import { useTheme } from "../ThemeContext";
 
-export function Gauge({
+export const Gauge = ({
   value,
   min = 0,
   max = 100,
@@ -14,24 +14,21 @@ export function Gauge({
   width?: number;
   isTemperature?: boolean;
   showPercentage?: boolean;
-}) {
+}) => {
   const theme = useTheme();
   const ratio = Math.max(0, Math.min(1, (value - min) / (max - min || 1)));
   const filledCount = Math.round(ratio * width);
   const emptyCount = Math.max(0, width - filledCount);
 
-  let barColor = theme.accent;
-  if (isTemperature) {
-    if (value < 50) {
-      barColor = theme.tempCool;
-    } else if (value < 70) {
-      barColor = theme.tempWarm;
-    } else if (value < 85) {
-      barColor = theme.tempHot;
-    } else {
-      barColor = theme.tempCritical;
-    }
-  }
+  const barColor = isTemperature
+    ? value < 50
+      ? theme.tempCool
+      : value < 70
+        ? theme.tempWarm
+        : value < 85
+          ? theme.tempHot
+          : theme.tempCritical
+    : theme.accent;
 
   const filledStr = "▰".repeat(filledCount);
   const emptyStr = "▱".repeat(emptyCount);
@@ -50,4 +47,4 @@ export function Gauge({
       ) : null}
     </box>
   );
-}
+};

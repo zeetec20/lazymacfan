@@ -3,29 +3,29 @@ import { TextAttributes } from "@opentui/core";
 import { useTheme } from "../ThemeContext";
 
 const ART = [
-  "██╗      █████╗ ███████╗██╗   ██╗███╗   ███╗ █████╗  ██████╗███████╗ █████╗ ███╗   ██╗",
-  "██║     ██╔══██╗╚══███╔╝╚██╗ ██╔╝████╗ ████║██╔══██╗██╔════╝██╔════╝██╔══██╗████╗  ██║",
-  "██║     ███████║  ███╔╝  ╚████╔╝ ██╔████╔██║███████║██║     █████╗  ███████║██╔██╗ ██║",
-  "██║     ██╔══██║ ███╔╝    ╚██╔╝  ██║╚██╔╝██║██╔══██║██║     ██╔══╝  ██╔══██║██║╚██╗██║",
-  "███████╗██║  ██║███████╗   ██║   ██║ ╚═╝ ██║██║  ██║╚██████╗██║     ██║  ██║██║ ╚████║",
-  "╚══════╝╚═╝  ╚═╝╚══════╝   ╚═╝   ╚═╝     ╚═╝╚═╝  ╚═╝ ╚═════╝╚═╝     ╚═╝  ╚═╝╚═╝  ╚═══╝",
+  "  _      _   ________  __",
+  " | |    / \\ |__  /\\ \\ / /",
+  " | |   / _ \\  / /  \\ V / ",
+  " | |__/ ___ \\/ /_   | |  ",
+  " |____/_/   \\____/  |_|  ",
+  " ───  M A C  F A N  ───  ",
 ];
 
 const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 
 const WIDTH = Math.max(...ART.map((r) => r.length));
 const ROWS = ART.map((r) => r.padEnd(WIDTH, " "));
-const WINDOW = 12; // width of highlight sweep
-const SPEED = 70; // ms per sweep frame
+const WINDOW = 8; // width of highlight sweep
+const SPEED = 65; // ms per sweep frame
 
-export function Wordmark() {
+export const Wordmark = () => {
   const theme = useTheme();
   const [pos, setPos] = useState(0);
   const [spinnerIndex, setSpinnerIndex] = useState(0);
 
   useEffect(() => {
     const sweepTimer = setInterval(() => {
-      setPos((p) => (p + 1) % (WIDTH + WINDOW));
+      setPos((p) => (p + 1) % (WIDTH + WINDOW + 6));
     }, SPEED);
 
     const spinTimer = setInterval(() => {
@@ -41,7 +41,7 @@ export function Wordmark() {
   const spinner = SPINNER_FRAMES[spinnerIndex];
 
   return (
-    <box style={{ flexDirection: "column", alignItems: "center", paddingBottom: 1 }}>
+    <box style={{ flexDirection: "column", alignItems: "center", paddingTop: 1, paddingBottom: 1 }}>
       {ROWS.map((row, r) => (
         <box key={r} style={{ flexDirection: "row" }}>
           <text>
@@ -65,8 +65,8 @@ export function Wordmark() {
         <text fg={theme.accent}>
           <span attributes={TextAttributes.BOLD}>{spinner}</span>
         </text>
-        <text fg={theme.muted}>macOS dynamic fan controller & thermal telemetry</text>
+        <text fg={theme.muted}>macOS dynamic fan controller</text>
       </box>
     </box>
   );
-}
+};

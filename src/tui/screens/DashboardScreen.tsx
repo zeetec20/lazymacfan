@@ -4,13 +4,13 @@ import type { ControllerStatus } from "../../types/controller";
 import { Wordmark } from "../components/Wordmark";
 import { Gauge } from "../components/Gauge";
 
-export function DashboardScreen({
+export const DashboardScreen = ({
   status,
   selectedFanIndex,
 }: {
   status: ControllerStatus | null;
   selectedFanIndex: number;
-}) {
+}) => {
   const theme = useTheme();
 
   if (!status) {
@@ -20,8 +20,6 @@ export function DashboardScreen({
           flexGrow: 1,
           alignItems: "center",
           justifyContent: "center",
-          borderStyle: "rounded",
-          borderColor: theme.accent,
         }}
       >
         <text fg={theme.accent} attributes={TextAttributes.BOLD}>
@@ -53,8 +51,6 @@ export function DashboardScreen({
         {/* Banner Card */}
         <box
           style={{
-            borderStyle: "rounded",
-            borderColor: theme.border,
             alignItems: "center",
             justifyContent: "center",
             paddingTop: 1,
@@ -70,15 +66,34 @@ export function DashboardScreen({
             flexGrow: 1,
             flexDirection: "column",
             borderStyle: "rounded",
-            borderColor: theme.accent,
+            borderColor: theme.border,
             paddingLeft: 2,
             paddingRight: 2,
             paddingTop: 1,
             paddingBottom: 1,
             gap: 1,
           }}
-          title=" 🌀 Fans Telemetry & Controls "
         >
+          <box
+            style={{
+              flexDirection: "row",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginBottom: 1,
+            }}
+          >
+            <text attributes={TextAttributes.BOLD}>
+              <span fg={theme.accent}>🌀 </span>
+              <span fg={theme.fg}>Fans Telemetry & Controls</span>
+            </text>
+            <text
+              fg={status.privileged === false ? theme.tempWarm : theme.tempCool}
+              attributes={TextAttributes.BOLD}
+            >
+              {status.privileged === false ? "🔒 Read-Only" : "⚡ Full Control"}
+            </text>
+          </box>
+
           {status.fans.length === 0 ? (
             <text fg={theme.muted}>No fans detected on this Mac.</text>
           ) : (
@@ -92,7 +107,6 @@ export function DashboardScreen({
                     flexDirection: "column",
                     borderStyle: "rounded",
                     borderColor: isSelected ? theme.accent : theme.border,
-                    backgroundColor: isSelected ? theme.selectedBg : undefined,
                     paddingLeft: 1,
                     paddingRight: 1,
                     paddingTop: 0,
@@ -119,7 +133,11 @@ export function DashboardScreen({
                   </box>
 
                   <box
-                    style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 0 }}
+                    style={{
+                      flexDirection: "row",
+                      justifyContent: "space-between",
+                      marginTop: 0,
+                    }}
                   >
                     <text fg={theme.fg}>
                       <span>{Math.round(fan.currentRpm)} RPM</span>
@@ -161,13 +179,19 @@ export function DashboardScreen({
             paddingBottom: 1,
             gap: 1,
           }}
-          title=" 🌡️ Core Temperature Telemetry "
         >
+          <box style={{ flexDirection: "row", alignItems: "center", marginBottom: 1 }}>
+            <text attributes={TextAttributes.BOLD}>
+              <span fg={theme.tempWarm}>🔥 </span>
+              <span fg={theme.fg}>Core Temperature Telemetry</span>
+            </text>
+          </box>
+
           {/* CPU Row */}
           <box style={{ flexDirection: "column", marginBottom: 1 }}>
             <box style={{ flexDirection: "row", justifyContent: "space-between" }}>
               <text fg={theme.fg}>
-                <span attributes={TextAttributes.BOLD}>CPU Package / Die</span>
+                <span attributes={TextAttributes.BOLD}>⚡ CPU Package / Die</span>
                 <span fg={theme.muted}> ({cpuSensor?.name ?? "Auto"})</span>
               </text>
               <text fg={theme.fg} attributes={TextAttributes.BOLD}>
@@ -188,7 +212,7 @@ export function DashboardScreen({
           <box style={{ flexDirection: "column", marginBottom: 1 }}>
             <box style={{ flexDirection: "row", justifyContent: "space-between" }}>
               <text fg={theme.fg}>
-                <span attributes={TextAttributes.BOLD}>GPU Core</span>
+                <span attributes={TextAttributes.BOLD}>🎮 GPU Core</span>
                 <span fg={theme.muted}> ({gpuSensor?.name ?? "GPU"})</span>
               </text>
               <text fg={theme.fg} attributes={TextAttributes.BOLD}>
@@ -209,7 +233,7 @@ export function DashboardScreen({
           <box style={{ flexDirection: "column", marginBottom: 1 }}>
             <box style={{ flexDirection: "row", justifyContent: "space-between" }}>
               <text fg={theme.fg}>
-                <span attributes={TextAttributes.BOLD}>Battery Module</span>
+                <span attributes={TextAttributes.BOLD}>🔋 Battery Module</span>
                 <span fg={theme.muted}> ({batSensor?.name ?? "Battery"})</span>
               </text>
               <text fg={theme.fg} attributes={TextAttributes.BOLD}>
@@ -248,17 +272,23 @@ export function DashboardScreen({
             paddingBottom: 1,
             gap: 1,
           }}
-          title=" ⚡ Controller Health & Guardian "
         >
+          <box style={{ flexDirection: "row", alignItems: "center", marginBottom: 1 }}>
+            <text attributes={TextAttributes.BOLD}>
+              <span fg={theme.accent}>🔰 </span>
+              <span fg={theme.fg}>Controller Health & Guardian</span>
+            </text>
+          </box>
+
           <box style={{ flexDirection: "row", justifyContent: "space-between" }}>
-            <text fg={theme.muted}>Status:</text>
+            <text fg={theme.muted}>🟢 Status:</text>
             <text fg={theme.tempCool} attributes={TextAttributes.BOLD}>
               ● ACTIVE (PID {status.pid})
             </text>
           </box>
 
           <box style={{ flexDirection: "row", justifyContent: "space-between" }}>
-            <text fg={theme.muted}>Mode:</text>
+            <text fg={theme.muted}>🎛️ Mode:</text>
             <text
               fg={status.mode === "manual" ? theme.fanManual : theme.fanAuto}
               attributes={TextAttributes.BOLD}
@@ -268,15 +298,25 @@ export function DashboardScreen({
           </box>
 
           <box style={{ flexDirection: "row", justifyContent: "space-between" }}>
-            <text fg={theme.muted}>Emergency Cutoff:</text>
+            <text fg={theme.muted}>🚨 Emergency Cutoff:</text>
             <text fg={theme.tempCritical} attributes={TextAttributes.BOLD}>
               {status.emergencyTemperatureC}°C (Max Fan Speed)
             </text>
           </box>
 
           <box style={{ flexDirection: "row", justifyContent: "space-between" }}>
-            <text fg={theme.muted}>Uptime:</text>
+            <text fg={theme.muted}>⏱️ Uptime:</text>
             <text fg={theme.fg}>{uptimeStr}</text>
+          </box>
+
+          <box style={{ flexDirection: "row", justifyContent: "space-between" }}>
+            <text fg={theme.muted}>🔐 Hardware Access:</text>
+            <text
+              fg={status.privileged === false ? theme.tempWarm : theme.tempCool}
+              attributes={TextAttributes.BOLD}
+            >
+              {status.privileged === false ? "Read-Only (Unprivileged)" : "Root / Privileged"}
+            </text>
           </box>
 
           {status.error ? (
@@ -288,4 +328,4 @@ export function DashboardScreen({
       </box>
     </box>
   );
-}
+};

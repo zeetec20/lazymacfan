@@ -1,63 +1,21 @@
-import { existsSync, unlinkSync } from "node:fs";
+import { chmodSync, existsSync, unlinkSync } from "node:fs";
 import { getSocketPath } from "../config/persistence";
-import type { FanControllerService } from "../controller/controller";
+import type { FanControllerInstance } from "../controller/controller";
 import type { IPCRequest, IPCResponse } from "./protocol";
 
-export class IPCServer {
-  private controller: FanControllerService;
-  private server: ReturnType<typeof Bun.listen> | null = null;
-  private socketPath: string;
+export interface IPCServerInstance {
+  start: () => void;
+  stop: () => void;
+}
 
-  constructor(controller: FanControllerService, socketPath?: string) {
-    this.controller = controller;
-    this.socketPath = socketPath ?? getSocketPath();
-  }
+export const createIPCServer = (
+  controller: FanControllerInstance,
+  socketPath?: string,
+): IPCServerInstance => {
+  const activeSocketPath = socketPath ?? getSocketPath();
+  let server: ReturnType<typeof Bun.listen> | null = null;
 
-  public start(): void {
-    if (existsSync(this.socketPath)) {
-      try {
-        unlinkSync(this.socketPath);
-      } catch {
-        // ignore
-      }
-    }
-
-    const controller = this.controller;
-
-    this.server = Bun.listen({
-      unix: this.socketPath,
-      socket: {
-        async data(socket, data) {
-          const raw = data.toString().trim();
-          if (!raw) return;
-
-          let response: IPCResponse;
-          try {
-            const req = JSON.parse(raw) as IPCRequest;
-            response = await IPCServer.handleRequest(controller, req);
-          } catch (err) {
-            response = {
-              success: false,
-              error: err instanceof Error ? err.message : String(err),
-            };
-          }
-
-          socket.write(JSON.stringify(response) + "\n");
-        },
-        open() {},
-        close() {},
-        error(socket, err) {
-          const errResp: IPCResponse = { success: false, error: err.message };
-          socket.write(JSON.stringify(errResp) + "\n");
-        },
-      },
-    });
-  }
-
-  private static async handleRequest(
-    controller: FanControllerService,
-    req: IPCRequest,
-  ): Promise<IPCResponse> {
+  const handleRequest = async (req: IPCRequest): Promise<IPCResponse> => {
     switch (req.type) {
       case "ping":
         return { success: true, data: { pong: true } };
@@ -86,19 +44,74 @@ export class IPCServer {
       default:
         return { success: false, error: `Unknown request type: ${(req as { type: string }).type}` };
     }
-  }
+  };
 
-  public stop(): void {
-    if (this.server) {
-      this.server.stop();
-      this.server = null;
-    }
-    if (existsSync(this.socketPath)) {
+  const start = (): void => {
+    if (existsSync(activeSocketPath)) {
       try {
-        unlinkSync(this.socketPath);
+        unlinkSync(activeSocketPath);
       } catch {
         // ignore
       }
     }
-  }
-}
+
+    server = Bun.listen({
+      unix: activeSocketPath,
+      socket: {
+        async data(socket, data) {
+          const raw = data.toString().trim();
+          if (!raw) return;
+
+          let response: IPCResponse;
+          try {
+            const req = JSON.parse(raw) as IPCRequest;
+            response = await handleRequest(req);
+          } catch (err) {
+            response = {
+              success: false,
+              error: err instanceof Error ? err.message : String(err),
+            };
+          }
+
+          socket.write(JSON.stringify(response) + "\n");
+        },
+        open() {},
+        close() {},
+        error(socket, err) {
+          const errResp: IPCResponse = { success: false, error: err.message };
+          socket.write(JSON.stringify(errResp) + "\n");
+        },
+      },
+    });
+
+    try {
+      if (existsSync(activeSocketPath)) {
+        chmodSync(activeSocketPath, 0o666);
+      }
+    } catch {
+      // ignore
+    }
+  };
+
+  const stop = (): void => {
+    if (server) {
+      server.stop();
+      server = null;
+    }
+    if (existsSync(activeSocketPath)) {
+      try {
+        unlinkSync(activeSocketPath);
+      } catch {
+        // ignore
+      }
+    }
+  };
+
+  return {
+    start,
+    stop,
+  };
+};
+
+export type IPCServer = IPCServerInstance;
+export const IPCServer = createIPCServer;

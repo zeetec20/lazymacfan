@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { MacOSHardwareBackend } from "../../src/hardware/macos-backend";
+import { createMacOSHardwareBackend } from "../../src/hardware/macos-backend";
 
 describe("Live Hardware Backend (macOS)", () => {
-  const backend = new MacOSHardwareBackend();
+  const backend = createMacOSHardwareBackend();
   const isDarwin = process.platform === "darwin";
 
   it("checks hardware availability on macOS", async () => {

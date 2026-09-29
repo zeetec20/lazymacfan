@@ -41,4 +41,23 @@ describe("Configuration", () => {
     expect(parsed.controller.pollIntervalMs).toBe(2000);
     expect(parsed.fan["0"]?.targetRpm).toBe(3200);
   });
+
+  it("expands leading ~ properly", async () => {
+    const { expandHome } = await import("../../src/config/persistence");
+    const { homedir } = await import("node:os");
+    const { join } = await import("node:path");
+
+    expect(expandHome("~")).toBe(homedir());
+    expect(expandHome("~/test/path")).toBe(join(homedir(), "test/path"));
+    expect(expandHome("/absolute/path")).toBe("/absolute/path");
+  });
+
+  it("resolves CONFIG_DIR and CONFIG_FILE under .config", async () => {
+    const { CONFIG_DIR, CONFIG_FILE, getConfigPath } = await import("../../src/config/persistence");
+    const { join } = await import("node:path");
+
+    expect(CONFIG_DIR).toContain("lazymacfan");
+    expect(CONFIG_FILE).toBe(join(CONFIG_DIR, "config.toml"));
+    expect(getConfigPath()).toBe(CONFIG_FILE);
+  });
 });

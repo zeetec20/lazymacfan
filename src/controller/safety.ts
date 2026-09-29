@@ -7,68 +7,79 @@ export interface SafetyCheckResult {
   reason?: string;
 }
 
-export class SafetyGuardian {
-  private emergencyTempC: number;
-
-  constructor(emergencyTempC = 95) {
-    this.emergencyTempC = emergencyTempC;
-  }
-
-  public setEmergencyThreshold(tempC: number): void {
-    this.emergencyTempC = tempC;
-  }
-
-  public getEmergencyThreshold(): number {
-    return this.emergencyTempC;
-  }
-
-  /**
-   * Evaluates if any sensor has exceeded the critical emergency threshold.
-   */
-  public checkEmergencyTemperature(sensors: TemperatureSensor[]): {
+export interface SafetyGuardianInstance {
+  setEmergencyThreshold: (tempC: number) => void;
+  getEmergencyThreshold: () => number;
+  checkEmergencyTemperature: (sensors: TemperatureSensor[]) => {
     emergency: boolean;
     sensor?: TemperatureSensor;
-  } {
+  };
+  clampRpm: (requestedRpm: number, fan: Fan) => number;
+  evaluateTargetRpm: (
+    requestedRpm: number,
+    fan: Fan,
+    sensors: TemperatureSensor[],
+  ) => SafetyCheckResult;
+}
+
+export const createSafetyGuardian = (initialEmergencyTempC = 95): SafetyGuardianInstance => {
+  let emergencyTempC = initialEmergencyTempC;
+
+  const setEmergencyThreshold = (tempC: number): void => {
+    emergencyTempC = tempC;
+  };
+
+  const getEmergencyThreshold = (): number => emergencyTempC;
+
+  const checkEmergencyTemperature = (
+    sensors: TemperatureSensor[],
+  ): {
+    emergency: boolean;
+    sensor?: TemperatureSensor;
+  } => {
     for (const sensor of sensors) {
-      if (sensor.available && sensor.temperature >= this.emergencyTempC) {
+      if (sensor.available && sensor.temperature >= emergencyTempC) {
         return { emergency: true, sensor };
       }
     }
     return { emergency: false };
-  }
+  };
 
-  /**
-   * Enforces strict safety clamping for fan RPM.
-   */
-  public clampRpm(requestedRpm: number, fan: Fan): number {
-    if (Number.isNaN(requestedRpm)) return fan.minRpm;
-    if (requestedRpm < fan.minRpm) return fan.minRpm;
+  const clampRpm = (requestedRpm: number, fan: Fan): number => {
+    if (Number.isNaN(requestedRpm) || requestedRpm < fan.minRpm) return fan.minRpm;
     if (requestedRpm > fan.maxRpm) return fan.maxRpm;
     return Math.round(requestedRpm);
-  }
+  };
 
-  /**
-   * Evaluates target RPM under current conditions, enforcing emergency override if required.
-   */
-  public evaluateTargetRpm(
+  const evaluateTargetRpm = (
     requestedRpm: number,
     fan: Fan,
     sensors: TemperatureSensor[],
-  ): SafetyCheckResult {
-    const emergencyCheck = this.checkEmergencyTemperature(sensors);
+  ): SafetyCheckResult => {
+    const emergencyCheck = checkEmergencyTemperature(sensors);
 
     if (emergencyCheck.emergency && emergencyCheck.sensor) {
       return {
         isEmergency: true,
         clampedRpm: fan.maxRpm,
-        reason: `Emergency! Sensor '${emergencyCheck.sensor.name}' at ${emergencyCheck.sensor.temperature}°C exceeded limit (${this.emergencyTempC}°C). Forcing max RPM.`,
+        reason: `Emergency! Sensor '${emergencyCheck.sensor.name}' at ${emergencyCheck.sensor.temperature}°C exceeded limit (${emergencyTempC}°C). Forcing max RPM.`,
       };
     }
 
-    const clamped = this.clampRpm(requestedRpm, fan);
+    const clamped = clampRpm(requestedRpm, fan);
     return {
       isEmergency: false,
       clampedRpm: clamped,
     };
-  }
-}
+  };
+
+  return {
+    setEmergencyThreshold,
+    getEmergencyThreshold,
+    checkEmergencyTemperature,
+    clampRpm,
+    evaluateTargetRpm,
+  };
+};
+
+export const SafetyGuardian = createSafetyGuardian;

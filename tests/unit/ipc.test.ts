@@ -1,10 +1,13 @@
 import { describe, expect, it, beforeAll, afterAll } from "vitest";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { IPCServer } from "../../src/ipc/server";
-import { IPCClient } from "../../src/ipc/client";
-import { FanControllerService } from "../../src/controller/controller";
-import { MockHardwareBackend } from "../../src/hardware/mock-backend";
+import { createIPCServer, type IPCServer } from "../../src/ipc/server";
+import { createIPCClient, type IPCClient } from "../../src/ipc/client";
+import { createFanController, type FanControllerService } from "../../src/controller/controller";
+import {
+  createMockHardwareBackend,
+  type MockHardwareBackend,
+} from "../../src/hardware/mock-backend";
 
 describe("IPC Server & Client", () => {
   const testSocket = join(tmpdir(), `lazymacfan-test-${Date.now()}.sock`);
@@ -14,12 +17,12 @@ describe("IPC Server & Client", () => {
   let client: IPCClient;
 
   beforeAll(async () => {
-    mockHardware = new MockHardwareBackend();
-    controller = new FanControllerService(mockHardware);
+    mockHardware = createMockHardwareBackend();
+    controller = createFanController(mockHardware);
     await controller.start();
-    server = new IPCServer(controller, testSocket);
+    server = createIPCServer(controller, testSocket);
     server.start();
-    client = new IPCClient(testSocket);
+    client = createIPCClient(testSocket);
   });
 
   afterAll(async () => {
@@ -64,7 +67,7 @@ describe("IPC Server & Client", () => {
   it("sets fan speed", async () => {
     await client.setFanSpeed(0, 3500);
     const fans = await client.getFans();
-    const fan0 = fans.find((f) => f.id === 0);
+    const fan0 = fans.find((f: { id: number; targetRpm: number }) => f.id === 0);
     expect(fan0?.targetRpm).toBe(3500);
   });
 });

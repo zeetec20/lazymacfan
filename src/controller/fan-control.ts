@@ -4,7 +4,7 @@ import type { FanCurvePoint } from "../types/fan";
  * Calculates target RPM for a given temperature using linear interpolation
  * along the configured fan curve points.
  */
-export function calculateRpmFromCurve(temperature: number, curve: FanCurvePoint[]): number {
+export const calculateRpmFromCurve = (temperature: number, curve: FanCurvePoint[]): number => {
   if (curve.length === 0) {
     return 2000;
   }
@@ -40,4 +40,4 @@ export function calculateRpmFromCurve(temperature: number, curve: FanCurvePoint[
   }
 
   return last.rpm;
-}
+};

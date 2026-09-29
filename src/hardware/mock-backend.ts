@@ -2,8 +2,13 @@ import type { HardwareProvider } from "./hardware";
 import type { Fan } from "../types/fan";
 import type { TemperatureSensor } from "../types/temperature";
 
-export class MockHardwareBackend implements HardwareProvider {
-  private fans: Fan[] = [
+export interface MockHardwareBackendInstance extends HardwareProvider {
+  checkPrivileges: () => Promise<{ privileged: boolean; euid?: number; uid?: number }>;
+  setMockTemperature: (sensorId: string, temp: number) => void;
+}
+
+export const createMockHardwareBackend = (): MockHardwareBackendInstance => {
+  const fans: Fan[] = [
     {
       id: 0,
       name: "Fan 0",
@@ -24,7 +29,7 @@ export class MockHardwareBackend implements HardwareProvider {
     },
   ];
 
-  private sensors: TemperatureSensor[] = [
+  const sensors: TemperatureSensor[] = [
     {
       id: "cpu.package",
       name: "CPU Package",
@@ -59,42 +64,51 @@ export class MockHardwareBackend implements HardwareProvider {
     },
   ];
 
-  public async isAvailable(): Promise<boolean> {
-    return true;
-  }
+  const isAvailable = async (): Promise<boolean> => true;
 
-  public async getFans(): Promise<Fan[]> {
-    return this.fans.map((f) => ({ ...f }));
-  }
+  const checkPrivileges = async (): Promise<{ privileged: boolean }> => ({ privileged: true });
 
-  public async getSensors(): Promise<TemperatureSensor[]> {
-    return this.sensors.map((s) => ({ ...s }));
-  }
+  const getFans = async (): Promise<Fan[]> => fans.map((f) => ({ ...f }));
 
-  public async setSpeed(fanId: number, rpm: number): Promise<void> {
-    const fan = this.fans.find((f) => f.id === fanId);
+  const getSensors = async (): Promise<TemperatureSensor[]> => sensors.map((s) => ({ ...s }));
+
+  const setSpeed = async (fanId: number, rpm: number): Promise<void> => {
+    const fan = fans.find((f) => f.id === fanId);
     if (!fan) throw new Error(`Fan ${fanId} not found`);
     const clamped = Math.max(fan.minRpm, Math.min(fan.maxRpm, Math.round(rpm)));
     fan.targetRpm = clamped;
     fan.currentRpm = clamped;
     fan.mode = "manual";
-  }
+  };
 
-  public async restoreAutomatic(fanId: number): Promise<void> {
-    const fan = this.fans.find((f) => f.id === fanId);
+  const restoreAutomatic = async (fanId: number): Promise<void> => {
+    const fan = fans.find((f) => f.id === fanId);
     if (!fan) throw new Error(`Fan ${fanId} not found`);
     fan.mode = "auto";
-  }
+  };
 
-  public async restoreAllAutomatic(): Promise<void> {
-    for (const fan of this.fans) {
+  const restoreAllAutomatic = async (): Promise<void> => {
+    for (const fan of fans) {
       fan.mode = "auto";
     }
-  }
+  };
 
-  // Testing helpers
-  public setMockTemperature(sensorId: string, temp: number): void {
-    const s = this.sensors.find((x) => x.id === sensorId);
+  const setMockTemperature = (sensorId: string, temp: number): void => {
+    const s = sensors.find((x) => x.id === sensorId);
     if (s) s.temperature = temp;
-  }
-}
+  };
+
+  return {
+    isAvailable,
+    checkPrivileges,
+    getFans,
+    getSensors,
+    setSpeed,
+    restoreAutomatic,
+    restoreAllAutomatic,
+    setMockTemperature,
+  };
+};
+
+export type MockHardwareBackend = MockHardwareBackendInstance;
+export const MockHardwareBackend = createMockHardwareBackend;

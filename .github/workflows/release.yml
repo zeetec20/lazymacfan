@@ -6,7 +6,7 @@ name: release
 # created automatically, which triggers the build + asset upload below.
 on:
   push:
-    branches: [main]
+    branches: [master]
 
 permissions:
   contents: write
@@ -24,6 +24,7 @@ jobs:
         id: rp
         with:
           token: ${{ secrets.TAP_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
+          target-branch: ${{ github.ref_name }}
 
   build:
     needs: release-please
@@ -32,10 +33,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: macos-14         # Apple Silicon
+          - os: macos-14 # Apple Silicon
             platform: darwin
             arch: arm64
-          - os: macos-15-intel   # Intel — native x86_64 runner
+          - os: macos-15-intel # Intel — native x86_64 runner
             platform: darwin
             arch: x64
     runs-on: ${{ matrix.os }}

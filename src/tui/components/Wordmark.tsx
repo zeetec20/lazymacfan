@@ -18,7 +18,7 @@ const ROWS = ART.map((r) => r.padEnd(WIDTH, " "));
 const WINDOW = 8; // width of highlight sweep
 const SPEED = 65; // ms per sweep frame
 
-export const Wordmark = () => {
+export const Wordmark = ({ compact = false }: { compact?: boolean }) => {
   const theme = useTheme();
   const [pos, setPos] = useState(0);
   const [spinnerIndex, setSpinnerIndex] = useState(0);
@@ -39,6 +39,29 @@ export const Wordmark = () => {
   }, []);
 
   const spinner = SPINNER_FRAMES[spinnerIndex];
+
+  if (compact) {
+    return (
+      <box
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 1,
+        }}
+      >
+        <text fg={theme.accent}>
+          <span attributes={TextAttributes.BOLD}>{spinner} 🌀</span>
+        </text>
+        <text>
+          <span fg={theme.accent} attributes={TextAttributes.BOLD}>
+            LAZYMACFAN
+          </span>
+          <span fg={theme.muted}> — macOS dynamic fan controller</span>
+        </text>
+      </box>
+    );
+  }
 
   return (
     <box style={{ flexDirection: "column", alignItems: "center", paddingTop: 1, paddingBottom: 1 }}>

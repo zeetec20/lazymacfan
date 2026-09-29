@@ -1,17 +1,19 @@
 import { TextAttributes } from "@opentui/core";
 import { useTheme } from "../ThemeContext";
+import { useTerminalSize } from "../useTerminalSize";
 
 export const Footer = () => {
   const theme = useTheme();
+  const { columns, isCompactWidth } = useTerminalSize();
 
   const hints = [
     { key: "1-4", label: "tabs" },
-    { key: "m", label: "auto/manual" },
-    { key: "←/→", label: "rpm ±500" },
+    { key: "m", label: isCompactWidth ? "mode" : "auto/manual" },
+    { key: "←/→", label: isCompactWidth ? "rpm" : "rpm ±500" },
     { key: "T", label: "theme" },
-    { key: "r", label: "refresh" },
+    ...(isCompactWidth ? [] : [{ key: "r", label: "refresh" }]),
     { key: "?", label: "help" },
-    { key: "q", label: "quit" },
+    ...(isCompactWidth ? [] : [{ key: "q", label: "quit" }]),
   ];
 
   return (
@@ -40,11 +42,13 @@ export const Footer = () => {
           </box>
         ))}
       </box>
-      <box style={{ flexDirection: "row" }}>
-        <text fg={theme.muted}>
-          <span>lazymacfan 🌀</span>
-        </text>
-      </box>
+      {columns >= 85 ? (
+        <box style={{ flexDirection: "row" }}>
+          <text fg={theme.muted}>
+            <span>lazymacfan 🌀</span>
+          </text>
+        </box>
+      ) : null}
     </box>
   );
 };

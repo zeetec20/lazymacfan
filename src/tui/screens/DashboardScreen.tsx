@@ -3,6 +3,7 @@ import { useTheme } from "../ThemeContext";
 import type { ControllerStatus } from "../../types/controller";
 import { Wordmark } from "../components/Wordmark";
 import { Gauge } from "../components/Gauge";
+import { useTerminalSize } from "../useTerminalSize";
 
 export const DashboardScreen = ({
   status,
@@ -12,6 +13,7 @@ export const DashboardScreen = ({
   selectedFanIndex: number;
 }) => {
   const theme = useTheme();
+  const { isCompactHeight, isCompactWidth } = useTerminalSize();
 
   if (!status) {
     return (
@@ -47,17 +49,18 @@ export const DashboardScreen = ({
   return (
     <box style={{ flexDirection: "row", flexGrow: 1, gap: 1 }}>
       {/* Left Column: Wordmark & Fan Telemetry */}
-      <box style={{ width: "50%", flexDirection: "column", gap: 1 }}>
+      <box style={{ width: "50%", flexDirection: "column", gap: isCompactHeight ? 0 : 1 }}>
         {/* Banner Card */}
         <box
           style={{
             alignItems: "center",
             justifyContent: "center",
-            paddingTop: 1,
-            paddingBottom: 1,
+            paddingTop: isCompactHeight ? 0 : 1,
+            paddingBottom: isCompactHeight ? 0 : 1,
+            flexShrink: 0,
           }}
         >
-          <Wordmark />
+          <Wordmark compact={isCompactHeight} />
         </box>
 
         {/* Fans Card */}
@@ -69,9 +72,9 @@ export const DashboardScreen = ({
             borderColor: theme.border,
             paddingLeft: 2,
             paddingRight: 2,
-            paddingTop: 1,
-            paddingBottom: 1,
-            gap: 1,
+            paddingTop: isCompactHeight ? 0 : 1,
+            paddingBottom: isCompactHeight ? 0 : 1,
+            gap: isCompactHeight ? 0 : 1,
           }}
         >
           <box
@@ -79,7 +82,7 @@ export const DashboardScreen = ({
               flexDirection: "row",
               justifyContent: "space-between",
               alignItems: "center",
-              marginBottom: 1,
+              marginBottom: isCompactHeight ? 0 : 1,
             }}
           >
             <text attributes={TextAttributes.BOLD}>
@@ -111,7 +114,7 @@ export const DashboardScreen = ({
                     paddingRight: 1,
                     paddingTop: 0,
                     paddingBottom: 0,
-                    marginBottom: 1,
+                    marginBottom: isCompactHeight ? 0 : 1,
                     flexShrink: 0,
                   }}
                 >
@@ -149,12 +152,12 @@ export const DashboardScreen = ({
                     </text>
                   </box>
 
-                  <box style={{ marginTop: 0, marginBottom: 1 }}>
+                  <box style={{ marginTop: 0, marginBottom: isCompactHeight ? 0 : 1 }}>
                     <Gauge
                       value={fan.currentRpm}
                       min={fan.minRpm}
                       max={fan.maxRpm}
-                      width={30}
+                      width={isCompactWidth ? 22 : 30}
                       isTemperature={false}
                     />
                   </box>
@@ -166,7 +169,7 @@ export const DashboardScreen = ({
       </box>
 
       {/* Right Column: Thermal Sensors & Controller State */}
-      <box style={{ width: "50%", flexDirection: "column", gap: 1 }}>
+      <box style={{ width: "50%", flexDirection: "column", gap: isCompactHeight ? 0 : 1 }}>
         {/* Thermal Overview Card */}
         <box
           style={{
@@ -176,9 +179,9 @@ export const DashboardScreen = ({
             borderColor: theme.border,
             paddingLeft: 2,
             paddingRight: 2,
-            paddingTop: 1,
-            paddingBottom: 1,
-            gap: 1,
+            paddingTop: isCompactHeight ? 0 : 1,
+            paddingBottom: isCompactHeight ? 0 : 1,
+            gap: isCompactHeight ? 0 : 1,
           }}
         >
           <box style={{ flexDirection: "row", alignItems: "center", height: 1, flexShrink: 0 }}>
@@ -206,8 +209,13 @@ export const DashboardScreen = ({
               }}
             >
               <text fg={theme.fg}>
-                <span attributes={TextAttributes.BOLD}>⚡ CPU Package / Die</span>
-                <span fg={theme.muted}> ({cpuSensor?.name ?? "Auto"})</span>
+                <span attributes={TextAttributes.BOLD}>⚡ CPU Package</span>
+                {isCompactWidth ? null : (
+                  <>
+                    <span attributes={TextAttributes.BOLD}> / Die</span>
+                    <span fg={theme.muted}> ({cpuSensor?.name ?? "Auto"})</span>
+                  </>
+                )}
               </text>
               <text fg={theme.fg} attributes={TextAttributes.BOLD}>
                 {cpuTemp.toFixed(1)}°C
@@ -218,7 +226,7 @@ export const DashboardScreen = ({
                 value={cpuTemp}
                 min={30}
                 max={105}
-                width={28}
+                width={isCompactWidth ? 20 : 28}
                 isTemperature
                 showPercentage={false}
               />
@@ -244,7 +252,9 @@ export const DashboardScreen = ({
             >
               <text fg={theme.fg}>
                 <span attributes={TextAttributes.BOLD}>🎮 GPU Core</span>
-                <span fg={theme.muted}> ({gpuSensor?.name ?? "GPU"})</span>
+                {isCompactWidth ? null : (
+                  <span fg={theme.muted}> ({gpuSensor?.name ?? "GPU"})</span>
+                )}
               </text>
               <text fg={theme.fg} attributes={TextAttributes.BOLD}>
                 {gpuTemp.toFixed(1)}°C
@@ -255,7 +265,7 @@ export const DashboardScreen = ({
                 value={gpuTemp}
                 min={30}
                 max={105}
-                width={28}
+                width={isCompactWidth ? 20 : 28}
                 isTemperature
                 showPercentage={false}
               />
@@ -280,8 +290,13 @@ export const DashboardScreen = ({
               }}
             >
               <text fg={theme.fg}>
-                <span attributes={TextAttributes.BOLD}>🔋 Battery Module</span>
-                <span fg={theme.muted}> ({batSensor?.name ?? "Battery"})</span>
+                <span attributes={TextAttributes.BOLD}>🔋 Battery</span>
+                {isCompactWidth ? null : (
+                  <>
+                    <span attributes={TextAttributes.BOLD}> Module</span>
+                    <span fg={theme.muted}> ({batSensor?.name ?? "Battery"})</span>
+                  </>
+                )}
               </text>
               <text fg={theme.fg} attributes={TextAttributes.BOLD}>
                 {batTemp.toFixed(1)}°C
@@ -292,7 +307,7 @@ export const DashboardScreen = ({
                 value={batTemp}
                 min={20}
                 max={65}
-                width={28}
+                width={isCompactWidth ? 20 : 28}
                 isTemperature
                 showPercentage={false}
               />
@@ -319,9 +334,9 @@ export const DashboardScreen = ({
             borderColor: theme.border,
             paddingLeft: 2,
             paddingRight: 2,
-            paddingTop: 1,
-            paddingBottom: 1,
-            gap: 1,
+            paddingTop: isCompactHeight ? 0 : 1,
+            paddingBottom: isCompactHeight ? 0 : 1,
+            gap: isCompactHeight ? 0 : 1,
           }}
         >
           <box style={{ flexDirection: "row", alignItems: "center", height: 1, flexShrink: 0 }}>

@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [0.4.0](https://github.com/zeetec20/lazymacfan/compare/v0.3.0...v0.4.0) (2026-09-29)
+
+
+### Features
+
+* **ui:** update main page for fans telemetry sections, to be more compact and support small screen ([090a381](https://github.com/zeetec20/lazymacfan/commit/090a381d4a502269563392b04d516fbfec9e9ef9))
+
 ## [0.3.0](https://github.com/zeetec20/lazymacfan/compare/v0.2.0...v0.3.0) (2026-09-29)
 
 

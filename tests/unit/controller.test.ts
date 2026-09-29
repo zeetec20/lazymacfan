@@ -71,4 +71,44 @@ describe("FanControllerService", () => {
     fans = await mock.getFans();
     expect(fans.find((f) => f.id === 0)?.mode).toBe("auto");
   });
+
+  it("automatically switches to auto mode and restores OS control when screen/lid is closed", async () => {
+    const mock = createMockHardwareBackend();
+    const testConfig: AppConfig = {
+      controller: {
+        mode: "manual",
+        pollIntervalMs: 1000,
+        emergencyTempC: 95,
+        tempUnit: "C",
+      },
+      fan: {
+        "0": {
+          targetRpm: 4500,
+        },
+      },
+    };
+
+    controller = createFanController(mock, testConfig);
+    // Initially open
+    mock.setMockLidClosed(false);
+    await controller.evaluateCycle();
+    expect(controller.getStatus().mode).toBe("manual");
+    expect(controller.getStatus().lidClosed).toBe(false);
+
+    // Screen/lid is closed
+    mock.setMockLidClosed(true);
+    await controller.evaluateCycle();
+
+    // Mode is automatically reverted to auto and OS automatic control restored
+    expect(controller.getStatus().mode).toBe("auto");
+    expect(controller.getStatus().lidClosed).toBe(true);
+    const fans = await mock.getFans();
+    expect(fans.every((f) => f.mode === "auto")).toBe(true);
+
+    // Reopen lid
+    mock.setMockLidClosed(false);
+    await controller.evaluateCycle();
+    expect(controller.getStatus().lidClosed).toBe(false);
+    expect(controller.getStatus().mode).toBe("auto");
+  });
 });

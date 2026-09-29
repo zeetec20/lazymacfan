@@ -5,6 +5,8 @@ import type { TemperatureSensor } from "../types/temperature";
 export interface MockHardwareBackendInstance extends HardwareProvider {
   checkPrivileges: () => Promise<{ privileged: boolean; euid?: number; uid?: number }>;
   setMockTemperature: (sensorId: string, temp: number) => void;
+  isLidClosed: () => Promise<boolean>;
+  setMockLidClosed: (closed: boolean) => void;
 }
 
 export const createMockHardwareBackend = (): MockHardwareBackendInstance => {
@@ -98,6 +100,14 @@ export const createMockHardwareBackend = (): MockHardwareBackendInstance => {
     if (s) s.temperature = temp;
   };
 
+  let lidClosed = false;
+
+  const isLidClosed = async (): Promise<boolean> => lidClosed;
+
+  const setMockLidClosed = (closed: boolean): void => {
+    lidClosed = closed;
+  };
+
   return {
     isAvailable,
     checkPrivileges,
@@ -107,6 +117,8 @@ export const createMockHardwareBackend = (): MockHardwareBackendInstance => {
     restoreAutomatic,
     restoreAllAutomatic,
     setMockTemperature,
+    isLidClosed,
+    setMockLidClosed,
   };
 };
 

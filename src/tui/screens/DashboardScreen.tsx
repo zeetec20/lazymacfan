@@ -288,7 +288,7 @@ export const DashboardScreen = ({
           </box>
 
           <box style={{ flexDirection: "row", justifyContent: "space-between" }}>
-            <text fg={theme.muted}>🎛️ Mode:</text>
+            <text fg={theme.muted}>Mode:</text>
             <text
               fg={status.mode === "manual" ? theme.fanManual : theme.fanAuto}
               attributes={TextAttributes.BOLD}
@@ -305,7 +305,7 @@ export const DashboardScreen = ({
           </box>
 
           <box style={{ flexDirection: "row", justifyContent: "space-between" }}>
-            <text fg={theme.muted}>⏱️ Uptime:</text>
+            <text fg={theme.muted}>Uptime:</text>
             <text fg={theme.fg}>{uptimeStr}</text>
           </box>
 

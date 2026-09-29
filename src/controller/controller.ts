@@ -36,6 +36,7 @@ export const createFanController = (
   let cachedSensors: TemperatureSensor[] = [];
   let lastError: string | null = null;
   let isPrivileged = true;
+  let isLidClosed = false;
   let cycleCount = 0;
 
   const getStatus = (): ControllerStatus => ({
@@ -50,6 +51,7 @@ export const createFanController = (
     lastUpdate: new Date().toISOString(),
     error: lastError ?? undefined,
     privileged: isPrivileged,
+    lidClosed: isLidClosed,
   });
 
   const getConfig = (): AppConfig => ({ ...config });
@@ -66,6 +68,31 @@ export const createFanController = (
       } catch {
         // ignore
       }
+    }
+
+    if (hardware.isLidClosed) {
+      try {
+        isLidClosed = await hardware.isLidClosed();
+        if (isLidClosed) {
+          if (config.controller.mode !== "auto") {
+            config.controller.mode = "auto";
+            saveConfig(config);
+          }
+          try {
+            await hardware.restoreAllAutomatic();
+          } catch (err) {
+            lastError = err instanceof Error ? err.message : String(err);
+          }
+          lastAppliedRpm.clear();
+          cachedFans = await hardware.getFans();
+          cachedSensors = await hardware.getSensors();
+          return;
+        }
+      } catch {
+        // ignore lid check failure
+      }
+    } else {
+      isLidClosed = false;
     }
 
     cachedFans = await hardware.getFans();

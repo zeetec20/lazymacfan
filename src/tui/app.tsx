@@ -101,18 +101,70 @@ const MainApp = () => {
       const fan = status.fans[selectedFanIndex] ?? status.fans[0];
       if (!fan) return;
 
-      const newTarget = fan.targetRpm + delta;
-      try {
-        await client.setFanSpeed(fan.id, newTarget);
-        showToast(`${fan.name} target speed set to ${newTarget} RPM`, "success");
-        await fetchStatus();
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        if (/permission denied|privilege|EPERM/i.test(msg)) {
-          showToast("Root required: Run 'sudo lazymacfan helper setup'", "error", 5500);
-        } else {
-          showToast(`Error: ${msg}`, "error", 5000);
+      if (delta > 0) {
+        if (fan.targetRpm >= fan.maxRpm) {
+          showToast(
+            `${fan.name} is already at maximum speed (${Math.round(fan.maxRpm)} RPM)`,
+            "warning",
+            3000,
+          );
+          return;
         }
+        const newTarget = Math.min(fan.maxRpm, fan.targetRpm + delta);
+        try {
+          await client.setFanSpeed(fan.id, newTarget);
+          if (newTarget >= fan.maxRpm) {
+            showToast(
+              `${fan.name} set to maximum speed (${Math.round(fan.maxRpm)} RPM)`,
+              "success",
+              3500,
+            );
+          } else {
+            showToast(`${fan.name} target speed set to ${newTarget} RPM`, "success");
+          }
+          await fetchStatus();
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          if (/permission denied|privilege|EPERM/i.test(msg)) {
+            showToast("Root required: Run 'sudo lazymacfan helper setup'", "error", 5500);
+          } else {
+            showToast(`Error: ${msg}`, "error", 5000);
+          }
+        }
+        return;
+      }
+
+      if (delta < 0) {
+        if (fan.targetRpm <= fan.minRpm) {
+          showToast(
+            `${fan.name} is already at minimum speed (${Math.round(fan.minRpm)} RPM)`,
+            "warning",
+            3000,
+          );
+          return;
+        }
+        const newTarget = Math.max(fan.minRpm, fan.targetRpm + delta);
+        try {
+          await client.setFanSpeed(fan.id, newTarget);
+          if (newTarget <= fan.minRpm) {
+            showToast(
+              `${fan.name} set to minimum speed (${Math.round(fan.minRpm)} RPM)`,
+              "success",
+              3500,
+            );
+          } else {
+            showToast(`${fan.name} target speed set to ${newTarget} RPM`, "success");
+          }
+          await fetchStatus();
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          if (/permission denied|privilege|EPERM/i.test(msg)) {
+            showToast("Root required: Run 'sudo lazymacfan helper setup'", "error", 5500);
+          } else {
+            showToast(`Error: ${msg}`, "error", 5000);
+          }
+        }
+        return;
       }
     },
     [client, fetchStatus, selectedFanIndex, showToast, status],

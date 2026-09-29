@@ -7,6 +7,7 @@ import type { TemperatureSensor } from "../types/temperature";
 export interface MacOSHardwareBackendInstance extends HardwareProvider {
   checkPrivileges: () => Promise<{ privileged: boolean; euid?: number; uid?: number }>;
   getAll: () => Promise<{ fans: Fan[]; sensors: TemperatureSensor[] }>;
+  isLidClosed: () => Promise<boolean>;
 }
 
 export const SYSTEM_HELPER_PATH = "/Library/PrivilegedHelperTools/lazymacfan-helper";
@@ -148,6 +149,31 @@ export const createMacOSHardwareBackend = (): MacOSHardwareBackendInstance => {
     }
   };
 
+  const isLidClosed = async (): Promise<boolean> => {
+    if (process.platform !== "darwin") return false;
+    try {
+      const raw = await runHelper(["--clamshell"]);
+      const parsed = JSON.parse(raw) as { success: boolean; clamshellClosed?: boolean };
+      if (typeof parsed.clamshellClosed === "boolean") {
+        return parsed.clamshellClosed;
+      }
+    } catch {
+      // Fallback to ioreg command if helper does not support --clamshell or helper call fails
+      try {
+        const proc = Bun.spawn(["ioreg", "-r", "-k", "AppleClamshellState", "-d", "4"], {
+          stdout: "pipe",
+          stderr: "pipe",
+        });
+        const out = await new Response(proc.stdout).text();
+        await proc.exited;
+        return /"AppleClamshellState"\s*=\s*Yes/i.test(out);
+      } catch {
+        return false;
+      }
+    }
+    return false;
+  };
+
   return {
     isAvailable,
     getFans,
@@ -157,6 +183,7 @@ export const createMacOSHardwareBackend = (): MacOSHardwareBackendInstance => {
     setSpeed,
     restoreAutomatic,
     restoreAllAutomatic,
+    isLidClosed,
   };
 };
 

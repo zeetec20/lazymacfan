@@ -15,4 +15,5 @@ export interface ControllerStatus {
   lastUpdate: string;
   error?: string;
   privileged?: boolean;
+  lidClosed?: boolean;
 }

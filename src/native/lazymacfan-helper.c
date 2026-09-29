@@ -437,8 +437,25 @@ static void printSensorsJSON(io_connect_t smcConn) {
 
 int main(int argc, char *argv[]) {
     if (argc < 2) {
-        fprintf(stderr, "Usage: lazymacfan-helper [--json | --fans | --sensors | --check-privileges | --set-fan <id> <rpm> | --auto <id> | --auto-all]\n");
+        fprintf(stderr, "Usage: lazymacfan-helper [--json | --fans | --sensors | --clamshell | --check-privileges | --set-fan <id> <rpm> | --auto <id> | --auto-all]\n");
         return 1;
+    }
+
+    if (strcmp(argv[1], "--clamshell") == 0) {
+        io_service_t rootDomain = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("IOPMrootDomain"));
+        bool isClosed = false;
+        if (rootDomain) {
+            CFTypeRef prop = IORegistryEntryCreateCFProperty(rootDomain, CFSTR("AppleClamshellState"), kCFAllocatorDefault, 0);
+            if (prop) {
+                if (CFGetTypeID(prop) == CFBooleanGetTypeID()) {
+                    isClosed = CFBooleanGetValue((CFBooleanRef)prop);
+                }
+                CFRelease(prop);
+            }
+            IOObjectRelease(rootDomain);
+        }
+        printf("{\"success\":true,\"clamshellClosed\":%s}\n", isClosed ? "true" : "false");
+        return 0;
     }
 
     if (strcmp(argv[1], "--check-privileges") == 0) {

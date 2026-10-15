@@ -14,6 +14,7 @@
 <p align="center">
   <img src="docs/screenshots/dashboard.webp" width="880" alt="lazymacfan dashboard: CPU/GPU temperature telemetry, per-fan RPM control, and controller health" />
 </p>
+
 ---
 
 ## 📖 Overview

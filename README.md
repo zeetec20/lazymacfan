@@ -9,6 +9,19 @@
 
 ---
 
+## 🖼️ Preview
+
+<p align="center">
+  <img src="docs/screenshots/dashboard.webp" width="880" alt="lazymacfan dashboard: CPU/GPU temperature telemetry, per-fan RPM control, and controller health" />
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/fan-curve.webp" width="432" alt="lazymacfan automatic dynamic fan curve view with configured thresholds and live operating point" />
+  <img src="docs/screenshots/settings.webp" width="432" alt="lazymacfan settings view with UI color theme picker and controller parameters" />
+</p>
+
+---
+
 ## 📖 Overview
 
 **lazymacfan** is designed with a fundamental architectural principle:

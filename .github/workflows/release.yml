@@ -77,9 +77,12 @@ jobs:
             echo "version=${VERSION}"
           } >> "$GITHUB_OUTPUT"
 
+  # `always()` is required, not decorative: `release-please` is skipped on workflow_dispatch, and
+  # GitHub skips every job downstream of a skipped job unless that job uses a status check function.
+  # Without it `build` is skipped even when `prepare` reports should_build=true.
   build:
     needs: prepare
-    if: needs.prepare.outputs.should_build == 'true'
+    if: always() && needs.prepare.outputs.should_build == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -110,8 +113,11 @@ jobs:
             dist/lazymacfan-${{ matrix.platform }}-${{ matrix.arch }}.tar.gz
             dist/lazymacfan-${{ matrix.platform }}-${{ matrix.arch }}.sha256
 
+  # Same transitive-skip rule as `build`, so `always()` is required here too; the explicit
+  # `needs.build.result` check keeps publish off when a build leg failed or was skipped.
   publish:
     needs: [prepare, build]
+    if: always() && needs.prepare.outputs.should_build == 'true' && needs.build.result == 'success'
     runs-on: ubuntu-latest
     env:
       TAG: ${{ needs.prepare.outputs.tag }}

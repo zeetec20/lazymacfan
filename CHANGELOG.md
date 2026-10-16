@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [0.5.0](https://github.com/zeetec20/lazymacfan/compare/v0.4.0...v0.5.0) (2026-10-16)
+
+
+### Features
+
+* **nix:** add flake package output ([a4edf11](https://github.com/zeetec20/lazymacfan/commit/a4edf11d126de7d1fc2bc0b8c1cb5a8ca3d00860))
+* **nix:** add flake package output ([33ecc3b](https://github.com/zeetec20/lazymacfan/commit/33ecc3bdd07338aea6428692dbd7d6c2d904c624))
+
+
+### Bug Fixes
+
+* **cli:** refuse store writes on Nix installs ([3a875c3](https://github.com/zeetec20/lazymacfan/commit/3a875c3aae587c4b81cbd9997570e553acd39b82))
+
 ## [0.4.0](https://github.com/zeetec20/lazymacfan/compare/v0.3.0...v0.4.0) (2026-09-29)
 
 

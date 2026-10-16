@@ -1,0 +1,39 @@
+name: scratch-gate
+
+on:
+  workflow_dispatch:
+
+jobs:
+  skipped-job:
+    if: false
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "never"
+
+  prepare:
+    needs: skipped-job
+    if: always()
+    runs-on: ubuntu-latest
+    outputs:
+      flag: ${{ steps.meta.outputs.flag }}
+    steps:
+      - id: meta
+        run: |
+          set -euo pipefail
+          {
+            echo "flag=true"
+          } >> "$GITHUB_OUTPUT"
+
+  gate-eq:
+    needs: prepare
+    if: needs.prepare.outputs.flag == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "gate-eq ran, flag=[${{ needs.prepare.outputs.flag }}]"
+
+  gate-ne:
+    needs: prepare
+    if: needs.prepare.outputs.flag != ''
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "gate-ne ran"

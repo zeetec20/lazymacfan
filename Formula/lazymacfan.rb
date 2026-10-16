@@ -1,6 +1,6 @@
 # TEMPLATE — do not install this file directly without filling placeholders.
 # Run scripts/gen-formula.sh to generate the filled-in formula at dist/lazymacfan.rb,
-# then copy that into your homebrew-tap's Formula/ directory.
+# then copy that into the zeetec20/homebrew-lazymacfan tap's Formula/ directory.
 class Lazymacfan < Formula
   desc "Lightweight macOS TUI application and background fan controller"
   homepage "https://github.com/__GH_OWNER__/lazymacfan"
@@ -22,7 +22,7 @@ class Lazymacfan < Formula
 
   def install
     bin.install "lazymacfan"
-    bin.install "lazymacfan-helper" if File.exist?("lazymacfan-helper")
+    bin.install "lazymacfan-helper"
   end
 
   def post_install
@@ -42,10 +42,19 @@ class Lazymacfan < Formula
       lazymacfan will automatically prompt for one-time Touch ID / admin
       authorization when first launched, or you can run:
         lazymacfan helper setup
+
+      If you installed with Homebrew, manage the background service with:
+        brew services start lazymacfan
+      Do not also run 'lazymacfan service start' — it installs a second
+      launchd job (com.lazymacfan.agent) that competes for fan control.
+
+      To remove the privileged helper and any launchd job:
+        lazymacfan uninstall
     EOS
   end
 
   test do
     assert_match "lazymacfan v#{version}", shell_output("#{bin}/lazymacfan --version")
+    assert_predicate bin/"lazymacfan-helper", :executable?
   end
 end

@@ -1,13 +1,21 @@
 name: release
 
 # Auto-tagging via release-please (Conventional Commits).
-# Push `feat:` / `fix:` commits to main -> release-please opens/updates a "release PR"
-# that bumps package.json + CHANGELOG. Merge it -> a git tag + GitHub release are
-# created automatically, which triggers the build + asset upload below.
+# Push `feat:` / `fix:` commits to master -> release-please opens/updates a "release PR"
+# that bumps package.json + CHANGELOG. Merging it creates the tag + GitHub release and sets
+# `release_created`, which drives build -> publish (release assets + Homebrew tap) below.
+#
+# To (re)build assets for a tag that already exists (e.g. a tag whose release/assets are
+# missing), dispatch this workflow manually:
+#   gh workflow run release.yml --ref master -f tag=v0.4.0
 on:
   push:
     branches: [main, master]
   workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing git tag to build and publish (e.g. v0.4.0)"
+        required: true
 
 permissions:
   contents: write
@@ -15,6 +23,7 @@ permissions:
 
 jobs:
   release-please:
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     outputs:
       release_created: ${{ steps.rp.outputs.release_created }}
@@ -27,9 +36,50 @@ jobs:
           token: ${{ secrets.TAP_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
           target-branch: ${{ github.ref_name }}
 
-  build:
+  # Normalizes tag/version for both trigger paths and decides whether to build.
+  prepare:
     needs: release-please
-    if: ${{ needs.release-please.outputs.release_created == 'true' }}
+    if: always()
+    runs-on: ubuntu-latest
+    outputs:
+      should_build: ${{ steps.meta.outputs.should_build }}
+      tag: ${{ steps.meta.outputs.tag }}
+      version: ${{ steps.meta.outputs.version }}
+    steps:
+      - id: meta
+        env:
+          RELEASE_CREATED: ${{ needs.release-please.outputs.release_created }}
+          RELEASE_TAG: ${{ needs.release-please.outputs.tag_name }}
+          RELEASE_VERSION: ${{ needs.release-please.outputs.version }}
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          TAG=""
+          VERSION=""
+          if [ "${RELEASE_CREATED:-false}" = "true" ]; then
+            TAG="${RELEASE_TAG}"
+            VERSION="${RELEASE_VERSION}"
+          elif [ -n "${INPUT_TAG:-}" ]; then
+            TAG="${INPUT_TAG}"
+            VERSION="${TAG#v}"
+          fi
+
+          if [ -z "${TAG}" ]; then
+            echo "No release to build (release_created=${RELEASE_CREATED:-false}, input_tag=${INPUT_TAG:-})."
+            echo "should_build=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "Building ${TAG} (version ${VERSION})"
+          {
+            echo "should_build=true"
+            echo "tag=${TAG}"
+            echo "version=${VERSION}"
+          } >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: prepare
+    if: needs.prepare.outputs.should_build == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -43,13 +93,15 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.tag }}
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
       - run: bun test tests/unit
       - name: Build binary and package tarball
         run: ./scripts/build-release.sh "$VERSION" "$ARCH"
         env:
-          VERSION: ${{ needs.release-please.outputs.version }}
+          VERSION: ${{ needs.prepare.outputs.version }}
           ARCH: ${{ matrix.arch }}
       - uses: actions/upload-artifact@v4
         with:
@@ -59,10 +111,15 @@ jobs:
             dist/lazymacfan-${{ matrix.platform }}-${{ matrix.arch }}.sha256
 
   publish:
-    needs: [release-please, build]
-    if: ${{ needs.release-please.outputs.release_created == 'true' }}
+    needs: [prepare, build]
     runs-on: ubuntu-latest
+    env:
+      TAG: ${{ needs.prepare.outputs.tag }}
+      VERSION: ${{ needs.prepare.outputs.version }}
+      GH_OWNER: ${{ github.repository_owner }}
     steps:
+      # Default branch, so the newest formula template + gen-formula.sh are used even when
+      # the build targets an older tag.
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
@@ -70,19 +127,16 @@ jobs:
           merge-multiple: true
       - name: Generate formula
         run: |
-          ./scripts/gen-formula.sh \
-            "$VERSION" \
-            "$GH_OWNER" \
+          ./scripts/gen-formula.sh "$VERSION" "$GH_OWNER" \
             "$(cat dist/lazymacfan-darwin-arm64.sha256)" \
             "$(cat dist/lazymacfan-darwin-x64.sha256)"
-        env:
-          VERSION: ${{ needs.release-please.outputs.version }}
-          GH_OWNER: ${{ github.repository_owner }}
       - name: Upload assets to GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ needs.release-please.outputs.tag_name }}
         run: |
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            gh release create "$TAG" --title "lazymacfan ${VERSION}" --generate-notes
+          fi
           gh release upload "$TAG" \
             dist/lazymacfan-darwin-arm64.tar.gz \
             dist/lazymacfan-darwin-arm64.sha256 \
@@ -91,13 +145,10 @@ jobs:
             dist/lazymacfan.rb \
             --clobber
       - name: Update Homebrew tap
-        if: ${{ env.TAP_TOKEN != '' }}
         env:
           TAP_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
-          VERSION: ${{ needs.release-please.outputs.version }}
-          GH_OWNER: ${{ github.repository_owner }}
         run: |
-          git clone "https://x-access-token:${TAP_TOKEN}@github.com/${GH_OWNER}/homebrew-tap.git" tap || \
+          set -euo pipefail
           git clone "https://x-access-token:${TAP_TOKEN}@github.com/${GH_OWNER}/homebrew-lazymacfan.git" tap
           mkdir -p tap/Formula
           cp dist/lazymacfan.rb tap/Formula/lazymacfan.rb
@@ -105,5 +156,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add Formula/lazymacfan.rb
-          git commit -m "lazymacfan v${VERSION}" || echo "no changes"
+          git commit -m "lazymacfan ${TAG#v}" || echo "no changes to commit"
           git push

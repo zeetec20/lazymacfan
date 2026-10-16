@@ -4,7 +4,7 @@
 
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.8-blue.svg)](https://www.typescriptlang.org/)
 [![Bun](https://img.shields.io/badge/Bun-1.3-black.svg)](https://bun.sh)
-[![Oxc](https://img.shields.io/badge/Linter_%26_Formatter-Oxc-orange.svg)](https://oxc.rs)
+[![Biome](https://img.shields.io/badge/Linter_%26_Formatter-Biome-blue.svg)](https://biomejs.dev)
 [![Platform](https://img.shields.io/badge/macOS-Apple_Silicon_%26_Intel-lightgrey.svg)](https://apple.com)
 
 ---
@@ -64,7 +64,7 @@ When you exit the Terminal UI, the background controller keeps running, maintain
   - Fail-safe exit: returns fan control to macOS automatic hardware management on daemon shutdown.
 - **Persistent Configuration**: Saved in `~/.config/lazymacfan/config.toml`.
 - **macOS launchd Integration**: Start at login, run as daemon, restart on crashes.
-- **Oxc Toolchain**: Linting with `oxlint`, formatting with `oxfmt`, and testing with `vitest`.
+- **Biome Toolchain**: Linting and formatting with `biome`, git hooks with `lefthook`, and testing with `vitest`.
 - **Reproducible Dev Environment**: Preconfigured with `flake.nix` and `direnv`.
 
 ---
@@ -262,16 +262,20 @@ rpm = 4500
 
 ## 🛠️ Development & Quality Assurance
 
-This project uses the high-performance **Oxc** toolchain alongside **Bun** and **TypeScript**:
+This project uses **Biome** for linting and formatting and **lefthook** for git hooks, alongside
+**Bun** and **TypeScript**:
 
 ```bash
-# Lint with oxlint (Oxc Rust-based linter)
+# Lint with Biome
 bun run lint
 bun run lint:fix
 
-# Format with oxfmt (Oxc Prettier-compatible formatter)
+# Format with Biome
 bun run format
 bun run format:check
+
+# Install the git hooks (also runs on `bun install`)
+bunx lefthook install
 
 # Run unit and integration tests (Vitest / Bun)
 bun run test
@@ -283,6 +287,9 @@ bun run typecheck
 # Build Universal Mach-O Binaries (arm64 + x86_64)
 bun run build
 ```
+
+The `pre-commit` hook runs `bun run lint:fix` on staged files via `lefthook`, so Biome's fixes are
+applied and re-staged before the commit lands.
 
 ---
 

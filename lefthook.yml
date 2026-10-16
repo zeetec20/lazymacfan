@@ -1,0 +1,8 @@
+# yaml-language-server: $schema=https://lefthook.dev/schema.json
+
+pre-commit:
+  jobs:
+    - name: lint:fix
+      glob: "*.{ts,tsx,js,jsx,json,jsonc}"
+      run: bun run lint:fix -- {staged_files}
+      stage_fixed: true

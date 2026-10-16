@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, statSync } from "node:fs";
+import { existsSync, mkdirSync, realpathSync, statSync } from "node:fs";
 export { SYSTEM_HELPER_PATH, resolveHelperPath } from "./macos-backend";
 import { createMacOSHardwareBackend, SYSTEM_HELPER_PATH, resolveHelperPath } from "./macos-backend";
 
@@ -91,6 +91,13 @@ export const authorizeHelper = async (
     };
   }
 
+  // The Nix store is immutable: chown/chmod on the store copy would mutate it, and it is
+  // unnecessary — resolveHelperPath() prefers SYSTEM_HELPER_PATH once that copy is setuid.
+  // Resolve symlinks first: chown/chmod follow them, and resolveHelperPath() can return a
+  // symlink (LAZYMACFAN_HELPER_PATH, /opt/homebrew/bin, a manual link) that points into the
+  // store. process.execPath needs no such treatment — Bun reports it already resolved.
+  const isNixStoreSource = realpathSync(srcPath).startsWith("/nix/store/");
+
   const prompt =
     promptMessage ??
     "lazymacfan requires administrative privileges to authorize fan speed control (AppleSMC write access).";
@@ -109,8 +116,10 @@ export const authorizeHelper = async (
         Bun.spawnSync(["chmod", "4755", SYSTEM_HELPER_PATH]);
       }
 
-      Bun.spawnSync(["chown", "root:wheel", srcPath]);
-      Bun.spawnSync(["chmod", "4755", srcPath]);
+      if (!isNixStoreSource) {
+        Bun.spawnSync(["chown", "root:wheel", srcPath]);
+        Bun.spawnSync(["chmod", "4755", srcPath]);
+      }
 
       const priv = await checkHelperPrivileges();
       return { success: priv.privileged };
@@ -124,8 +133,12 @@ export const authorizeHelper = async (
     const commands = ["mkdir -p /Library/PrivilegedHelperTools"];
     if (srcPath !== SYSTEM_HELPER_PATH) {
       commands.push(`cp ${posixQuote(srcPath)} ${posixQuote(SYSTEM_HELPER_PATH)}`);
-      commands.push(`chown root:wheel ${posixQuote(SYSTEM_HELPER_PATH)} ${posixQuote(srcPath)}`);
-      commands.push(`chmod 4755 ${posixQuote(SYSTEM_HELPER_PATH)} ${posixQuote(srcPath)}`);
+      commands.push(`chown root:wheel ${posixQuote(SYSTEM_HELPER_PATH)}`);
+      commands.push(`chmod 4755 ${posixQuote(SYSTEM_HELPER_PATH)}`);
+      if (!isNixStoreSource) {
+        commands.push(`chown root:wheel ${posixQuote(srcPath)}`);
+        commands.push(`chmod 4755 ${posixQuote(srcPath)}`);
+      }
     } else {
       commands.push(`chown root:wheel ${posixQuote(SYSTEM_HELPER_PATH)}`);
       commands.push(`chmod 4755 ${posixQuote(SYSTEM_HELPER_PATH)}`);

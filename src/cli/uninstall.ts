@@ -25,6 +25,11 @@ export const handleUninstallCommand = async (args: string[]): Promise<void> => {
     console.log("To completely remove via Homebrew, run:\n  brew uninstall lazymacfan\n");
   }
 
+  if (execPath.startsWith("/nix/store/")) {
+    console.log("Note: lazymacfan is installed via Nix.");
+    console.log("To remove the package itself, run:\n  nix profile remove lazymacfan\n");
+  }
+
   // 1. Stop and unload background launchd service
   console.log("Stopping and removing background launchd service...");
   try {

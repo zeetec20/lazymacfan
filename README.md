@@ -62,7 +62,7 @@ When you exit the Terminal UI, the background controller keeps running, maintain
   - Hardware RPM clamping to minimum/maximum supported fan speeds.
   - Emergency 95°C override: forces 100% safe fan speed if critical temperatures are exceeded.
   - Fail-safe exit: returns fan control to macOS automatic hardware management on daemon shutdown.
-- **Persistent Configuration**: Saved in `~/Library/Application Support/lazymacfan/config.toml`.
+- **Persistent Configuration**: Saved in `~/.config/lazymacfan/config.toml`.
 - **macOS launchd Integration**: Start at login, run as daemon, restart on crashes.
 - **Oxc Toolchain**: Linting with `oxlint`, formatting with `oxfmt`, and testing with `vitest`.
 - **Reproducible Dev Environment**: Preconfigured with `flake.nix` and `direnv`.
@@ -92,21 +92,63 @@ brew services start lazymacfan
 > `lazymacfan service start` — it installs a second launchd job and both fight
 > over fan control.
 
+### Nix (flake)
+
+```bash
+# Run it without installing
+nix run github:zeetec20/lazymacfan
+
+# Install it into your profile
+nix profile install github:zeetec20/lazymacfan
+```
+
+Or as an input in another flake:
+
+```nix
+inputs.lazymacfan.url = "github:zeetec20/lazymacfan";
+# use: inputs.lazymacfan.packages.${system}.default
+```
+
+The flake installs the same prebuilt release binaries as Homebrew, for both
+`aarch64-darwin` (Apple Silicon) and `x86_64-darwin` (Intel) — no `bun` or Xcode
+required.
+
+Upgrade and remove:
+
+```bash
+nix profile upgrade lazymacfan   # or: nix profile upgrade --all
+nix profile remove lazymacfan
+```
+
+Nix has no service manager for lazymacfan, so start the agent with the built-in
+launchd integration instead of `brew services`:
+
+```bash
+lazymacfan service start
+```
+
+The launchd job it writes points at the `/nix/store` path of the installed
+version, so re-run `lazymacfan service restart` after upgrading.
+
 ### From Source (Bun + Nix)
 
 ```bash
 git clone https://github.com/zeetec20/lazymacfan.git
 cd lazymacfan
 
-# If using direnv & Nix:
-direnv allow
+# Enter the dev shell (bun + clang):
+nix develop          # or: direnv allow
 
 # Install dependencies:
 bun install
 
 # Build universal binaries:
-bun run build
+bun run build        # -> dist/lazymacfan, dist/lazymacfan-helper
 ```
+
+The dev shell works on both architectures. On Intel, nixpkgs has no cached
+`bun` build, so the first `nix develop` builds it locally from bun's upstream
+release tarball.
 
 ---
 
@@ -166,13 +208,29 @@ lazymacfan service status
 # View background logs
 lazymacfan logs
 lazymacfan logs --follow
+
+# Helper privileges (setuid root for AppleSMC writes)
+lazymacfan helper status
+sudo lazymacfan helper setup
+
+# Launch the TUI in read-only monitor mode (no fan control, no privileges)
+lazymacfan --read-only
+
+# Check for or install updates (no-op when managed by Homebrew or Nix)
+lazymacfan update --check
+
+# Uninstall the launchd job, the privileged helper, and this binary
+lazymacfan uninstall
 ```
 
 ---
 
 ## ⚙️ Configuration (`config.toml`)
 
-Stored at `~/Library/Application Support/lazymacfan/config.toml`:
+Stored at `~/.config/lazymacfan/config.toml` (or
+`$XDG_CONFIG_HOME/lazymacfan/config.toml` when `XDG_CONFIG_HOME` is set). A config
+left at the old `~/Library/Application Support/lazymacfan/config.toml` path is
+migrated to the new location on first read.
 
 ```toml
 [controller]

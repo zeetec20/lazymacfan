@@ -4,29 +4,25 @@
 class Lazymacfan < Formula
   desc "Lightweight macOS TUI application and background fan controller"
   homepage "https://github.com/__GH_OWNER__/lazymacfan"
-  version "__VERSION__"
   license "MIT"
 
-  depends_on :macos
   depends_on arch: [:arm64, :x86_64]
+  depends_on :macos
 
-  on_arm do
-    url "https://github.com/__GH_OWNER__/lazymacfan/releases/download/v#{version}/lazymacfan-darwin-arm64.tar.gz"
+  # Per-arch `url`/`sha256` cannot live in `on_arm`/`on_intel` (brew audit rejects
+  # those keys there), so the arch split is a plain `Hardware::CPU` branch. The
+  # version is read from the URL, which is why there is no `version` stanza.
+  if Hardware::CPU.arm?
+    url "https://github.com/__GH_OWNER__/lazymacfan/releases/download/v__VERSION__/lazymacfan-darwin-arm64.tar.gz"
     sha256 "__SHA_ARM64__"
-  end
-
-  on_intel do
-    url "https://github.com/__GH_OWNER__/lazymacfan/releases/download/v#{version}/lazymacfan-darwin-x64.tar.gz"
+  else
+    url "https://github.com/__GH_OWNER__/lazymacfan/releases/download/v__VERSION__/lazymacfan-darwin-x64.tar.gz"
     sha256 "__SHA_X64__"
   end
 
   def install
     bin.install "lazymacfan"
     bin.install "lazymacfan-helper"
-  end
-
-  def post_install
-    (var/"log/lazymacfan").mkpath
   end
 
   service do

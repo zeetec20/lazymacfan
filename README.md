@@ -74,8 +74,13 @@ When you exit the Terminal UI, the background controller keeps running, maintain
 ### Homebrew (Recommended)
 
 ```bash
-brew tap zeetec/tap
+brew tap zeetec20/lazymacfan
 brew install lazymacfan
+```
+
+Or in one command:
+```bash
+brew install zeetec20/lazymacfan/lazymacfan
 ```
 
 To run as a persistent background service with `launchd`:
@@ -83,10 +88,14 @@ To run as a persistent background service with `launchd`:
 brew services start lazymacfan
 ```
 
+> Homebrew installs manage the agent with `brew services`. Don't also run
+> `lazymacfan service start` — it installs a second launchd job and both fight
+> over fan control.
+
 ### From Source (Bun + Nix)
 
 ```bash
-git clone https://github.com/zeetec/lazymacfan.git
+git clone https://github.com/zeetec20/lazymacfan.git
 cd lazymacfan
 
 # If using direnv & Nix:

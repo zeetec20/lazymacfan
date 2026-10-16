@@ -30,6 +30,13 @@ export const handleUpdateCommand = async (args: string[]): Promise<void> => {
     return;
   }
 
+  // Nix store paths are immutable, so an in-place self-update cannot work.
+  if (execPath.startsWith("/nix/store/")) {
+    console.log("lazymacfan is installed and managed via Nix.");
+    console.log("To upgrade, please run:\n  nix profile upgrade lazymacfan\n");
+    return;
+  }
+
   // 2. Query GitHub Releases API
   console.log(`Checking latest release from github.com/${REPO}...`);
   let latestTag = "";
